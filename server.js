@@ -23,6 +23,13 @@ export function createApp({ apiKey = process.env.GEMINI_API_KEY, fetchImpl = fet
     next();
   });
   app.get('/api/status', (_, res) => res.json({ configured: Boolean(apiKey) }));
+  function redactDiagnostic(value) {
+    return String(value).split(apiKey).join('[REDACTED]')
+      .replace(/AIza[A-Za-z0-9_-]+/g, '[REDACTED]')
+      .replace(/([?&](?:key|api_key|access_token)=)[^&\s]+/gi, '$1[REDACTED]')
+      .replace(/(Bearer\s+)[A-Za-z0-9._~-]+/gi, '$1[REDACTED]')
+      .replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 900);
+  }
   let modelCatalog;
   async function modelDiagnostic(model) {
     try {
@@ -61,7 +68,7 @@ export function createApp({ apiKey = process.env.GEMINI_API_KEY, fetchImpl = fet
       body: JSON.stringify({ contents, ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}), generationConfig: { maxOutputTokens: 8192 } })
     });
     if (!response.ok) {
-      // Inspect only known signals. Never return Google's raw message or credentials.
+      // Classify known errors; only 404 includes a bounded, redacted provider diagnostic.
       const failure = await response.json().catch(() => ({}));
       const reasons = (Array.isArray(failure.error?.details) ? failure.error.details : []).map(detail => detail?.reason);
       const message = typeof failure.error?.message === 'string' ? failure.error.message : '';
@@ -71,7 +78,12 @@ export function createApp({ apiKey = process.env.GEMINI_API_KEY, fetchImpl = fet
       else if (reasons.includes('API_KEY_INVALID') || reasons.includes('API_KEY_EXPIRED') || /API key not valid|API key expired/i.test(message) || response.status === 401) { code = 'GEMINI_KEY_INVALID'; help = 'مفتاح Gemini غير صالح أو منتهي. انسخ قيمته الكاملة إلى GEMINI_API_KEY في Vercel ثم أعد النشر.'; }
       else if (/location is not supported|not available in your country|unsupported location/i.test(message)) { code = 'GEMINI_REGION'; help = 'Gemini غير متاح في منطقة اتصال الخادم أو حساب Google. تحقق من المناطق المدعومة وإعدادات حسابك.'; }
       else if (response.status === 403) { code = 'GEMINI_PERMISSION'; help = 'Google رفض صلاحية الوصول. تحقق من تفعيل Generative Language API وقيود المفتاح والمشروع في Google Cloud. مفتاح الخادم لا يستخدم قيود مواقع المتصفح.'; }
-      else if (response.status === 404) { code = 'GEMINI_MODEL_NOT_FOUND'; help = 'نموذج Gemini المطلوب غير موجود لهذا الاستدعاء. ' + await modelDiagnostic(model); }
+      else if (response.status === 404) {
+        code = 'GEMINI_MODEL_NOT_FOUND';
+        help = 'فشل استدعاء توليد النص. ' + await modelDiagnostic(model);
+        help += `\nModèle demandé : ${redactDiagnostic(model)} · API v1beta · generateContent`;
+        help += `\nDétail Google : ${message ? redactDiagnostic(message) : 'Réponse sans message explicatif.'}`;
+      }
       else if (response.status === 400) { code = 'GEMINI_REQUEST_INVALID'; help = 'Google رفض صيغة الطلب. تحقق من النموذج وصيغة الملف إن أرسلت صوتاً. إذا استمر الخطأ فأرسل رمز التشخيص فقط.'; }
       const error = new Error(`${help} (${code} · HTTP ${response.status})`);
       error.diagnosticCode = code;

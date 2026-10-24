@@ -101,3 +101,16 @@ test('404 diagnostics query actual Google model catalog without retrying generat
   }
   assert.equal(generationCalls, 2); assert.equal(catalogCalls, 1);
 });
+test('404 includes requested model and bounded redacted Google detail', async t => {
+  const key = 'AIza-private-key-for-test';
+  const base = await server(t, { apiKey: key, fetchImpl: async url => {
+    if (!url.includes(':generateContent')) return Response.json({ models: [{ name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent'] }] });
+    return Response.json({ error: { message: `models/gemini-2.5-flash is not supported for generateContent. key=${key} https://example.test?key=another-key Bearer another-token ${'x'.repeat(2000)}` } }, { status: 404 });
+  } });
+  const response = await fetch(base + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Bonjour' }] }) });
+  const data = await response.json();
+  assert.match(data.error, /Détail Google : models\/gemini-2.5-flash is not supported/);
+  assert.match(data.error, /Modèle demandé : gemini-2.5-flash/);
+  assert.doesNotMatch(data.error, /AIza|private-key|another-key|another-token/);
+  assert.ok(data.error.length < 1500);
+});
