@@ -7,7 +7,7 @@ $('close-chat').onclick = () => { $('chat').classList.add('hidden'); if (recorde
 document.addEventListener('keydown', e => { if (e.key === 'Escape') $('close-chat').click(); });
 function feedback(text) { $('chat-feedback').textContent = text; }
 function setBusy(value) { busy = value; $('send').disabled = value || !configured; $('record').disabled = value || !configured; $('audio-file').disabled = value || !configured; document.querySelectorAll('[data-prompt]').forEach(b => b.disabled = value || !configured); }
-fetch('/api/status').then(r => r.json()).then(data => { configured = data.configured; $('ai-status').textContent = configured ? 'جاهز للمساعدة · Gemini' : 'يلزم إعداد اتصال Gemini'; if (!configured) feedback('Ajoutez GEMINI_API_KEY dans le fichier .env du serveur pour activer les messages et la transcription.'); setBusy(false); }).catch(() => { feedback('Impossible de joindre le serveur.'); setBusy(false); });
+fetch('/api/status').then(r => r.json()).then(data => { configured = data.configured; $('ai-status').textContent = configured ? 'مفتاح Gemini مُعدّ · لم يُختبر الاتصال' : 'يلزم إعداد اتصال Gemini'; if (!configured) feedback('أضف GEMINI_API_KEY في متغيرات بيئة Vercel ثم أعد النشر لتفعيل المساعد.'); setBusy(false); }).catch(() => { feedback('Impossible de joindre le serveur.'); setBusy(false); });
 function addMessage(role, text, allowApply = false) {
   const node = document.createElement('div'); node.className = `message ${role}`; node.dir = 'auto';
   const content = document.createElement('span'); content.textContent = text; node.append(content);
@@ -19,7 +19,7 @@ $('chat-form').onsubmit = async event => {
   event.preventDefault(); const text = $('chat-input').value.trim(); if (!text || busy || !configured) return;
   setBusy(true); feedback('المساعد يُحضّر الرد…'); addMessage('user', text); $('chat-input').value = '';
   const messages = [...history, { role: 'user', content: text }].slice(-19);
-  try { const data = await request('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages, letter: window.secretariatAI.letter() }) }); addMessage('assistant', data.reply, true); history = [...messages, { role: 'assistant', content: data.reply }].slice(-18); feedback(''); }
+  try { const data = await request('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages, letter: window.secretariatAI.letter() }) }); addMessage('assistant', data.reply, true); $('ai-status').textContent = 'متصل بـ Gemini'; history = [...messages, { role: 'assistant', content: data.reply }].slice(-18); feedback(''); }
   catch (error) { feedback(error.name === 'TimeoutError' ? 'Délai dépassé. Réessayez.' : error.message); $('chat-input').value = text; }
   finally { setBusy(false); }
 };

@@ -3,6 +3,7 @@ import multer from 'multer';
 import { fileURLToPath } from 'node:url';
 
 export function createApp({ apiKey = process.env.GEMINI_API_KEY, fetchImpl = fetch } = {}) {
+  apiKey = typeof apiKey === 'string' ? apiKey.trim() : '';
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '128kb' }));
@@ -23,14 +24,30 @@ export function createApp({ apiKey = process.env.GEMINI_API_KEY, fetchImpl = fet
   });
   app.get('/api/status', (_, res) => res.json({ configured: Boolean(apiKey) }));
   async function generate(contents, systemInstruction) {
-    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const model = process.env.GEMINI_MODEL?.trim().replace(/^models\//, '') || 'gemini-2.5-flash';
     const response = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       signal: AbortSignal.timeout(60000),
       body: JSON.stringify({ contents, ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}), generationConfig: { maxOutputTokens: 8192 } })
     });
-    if (!response.ok) throw new Error(response.status === 429 ? 'Quota Gemini atteint. Réessayez plus tard ou vérifiez votre quota Google AI Studio.' : 'Gemini est indisponible ou sa configuration est invalide. Vérifiez la clé et le modèle.');
+    if (!response.ok) {
+      // Inspect only known signals. Never return Google's raw message or credentials.
+      const failure = await response.json().catch(() => ({}));
+      const reasons = (Array.isArray(failure.error?.details) ? failure.error.details : []).map(detail => detail?.reason);
+      const message = typeof failure.error?.message === 'string' ? failure.error.message : '';
+      let code = 'GEMINI_UNAVAILABLE';
+      let help = 'خدمة Gemini غير متاحة مؤقتاً. أعد المحاولة لاحقاً.';
+      if (response.status === 429) { code = 'GEMINI_QUOTA'; help = 'تم تجاوز حصة Gemini. تحقق من الحصة والفوترة في Google AI Studio أو حاول لاحقاً.'; }
+      else if (reasons.includes('API_KEY_INVALID') || reasons.includes('API_KEY_EXPIRED') || /API key not valid|API key expired/i.test(message) || response.status === 401) { code = 'GEMINI_KEY_INVALID'; help = 'مفتاح Gemini غير صالح أو منتهي. انسخ قيمته الكاملة إلى GEMINI_API_KEY في Vercel ثم أعد النشر.'; }
+      else if (/location is not supported|not available in your country|unsupported location/i.test(message)) { code = 'GEMINI_REGION'; help = 'Gemini غير متاح في منطقة اتصال الخادم أو حساب Google. تحقق من المناطق المدعومة وإعدادات حسابك.'; }
+      else if (response.status === 403) { code = 'GEMINI_PERMISSION'; help = 'Google رفض صلاحية الوصول. تحقق من تفعيل Generative Language API وقيود المفتاح والمشروع في Google Cloud. مفتاح الخادم لا يستخدم قيود مواقع المتصفح.'; }
+      else if (response.status === 404) { code = 'GEMINI_MODEL_NOT_FOUND'; help = 'نموذج Gemini غير متاح لهذا الطلب. تحقق من GEMINI_MODEL في Vercel ومن توفر النموذج لحسابك ثم أعد النشر.'; }
+      else if (response.status === 400) { code = 'GEMINI_REQUEST_INVALID'; help = 'Google رفض صيغة الطلب. تحقق من النموذج وصيغة الملف إن أرسلت صوتاً. إذا استمر الخطأ فأرسل رمز التشخيص فقط.'; }
+      const error = new Error(`${help} (${code} · HTTP ${response.status})`);
+      error.diagnosticCode = code;
+      throw error;
+    }
     const data = await response.json();
     const candidate = data.candidates?.[0];
     if (candidate?.finishReason && candidate.finishReason !== 'STOP') throw new Error('Gemini n’a pas pu fournir une réponse complète. Reformulez ou raccourcissez votre demande.');
@@ -60,7 +77,7 @@ export function createApp({ apiKey = process.env.GEMINI_API_KEY, fetchImpl = fet
     } catch (error) { next(error); }
   });
   app.use((error, req, res, next) => {
-    res.status(error instanceof multer.MulterError || error.type === 'entity.too.large' || error.type === 'entity.parse.failed' ? 400 : 502).json({ error: error instanceof multer.MulterError ? 'Fichier trop volumineux (3 Mo maximum).' : error.type === 'entity.parse.failed' ? 'Requête JSON invalide.' : error.type === 'entity.too.large' ? 'Requête trop volumineuse.' : error.name === 'TimeoutError' ? 'Le service IA met trop de temps à répondre.' : error.message || 'Une erreur est survenue.' });
+    res.status(error instanceof multer.MulterError || error.type === 'entity.too.large' || error.type === 'entity.parse.failed' ? 400 : 502).json({ ...(error.diagnosticCode ? { code: error.diagnosticCode } : {}), error: error instanceof multer.MulterError ? 'Fichier trop volumineux (3 Mo maximum).' : error.type === 'entity.parse.failed' ? 'Requête JSON invalide.' : error.type === 'entity.too.large' ? 'Requête trop volumineuse.' : error.name === 'TimeoutError' ? 'Le service IA met trop de temps à répondre.' : error.message || 'Une erreur est survenue.' });
   });
   return app;
 }

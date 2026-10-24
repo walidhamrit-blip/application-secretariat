@@ -51,7 +51,7 @@ test('Gemini quota and blocked or empty responses are handled', async t => {
   let mode = 'quota';
   const base = await server(t, { apiKey: 'test', fetchImpl: async () => mode === 'quota' ? Response.json({}, { status: 429 }) : Response.json({ candidates: [{ finishReason: mode === 'blocked' ? 'SAFETY' : 'STOP', content: { parts: [] } }] }) });
   const post = () => fetch(base + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Bonjour' }] }) });
-  assert.match(await (await post()).text(), /Quota Gemini/);
+  assert.match(await (await post()).text(), /GEMINI_QUOTA/);
   mode = 'blocked'; assert.equal((await post()).status, 502);
   mode = 'empty'; assert.equal((await post()).status, 502);
 });
@@ -60,4 +60,23 @@ test('rejects oversized audio before calling Gemini', async t => {
   const form = new FormData(); form.append('audio', new Blob([new Uint8Array(3 * 1024 * 1024 + 1)], { type: 'audio/webm' }), 'too-large.webm');
   const response = await fetch(base + '/api/transcribe', { method: 'POST', body: form });
   assert.equal(response.status, 400); assert.match(await response.text(), /3 Mo/);
+});
+test('safe Gemini diagnostics identify key, permission, region, model and request errors', async t => {
+  let status = 400, payload;
+  const base = await server(t, { apiKey: '  private-key  ', fetchImpl: async (url, options) => {
+    assert.equal(options.headers['x-goog-api-key'], 'private-key');
+    return Response.json(payload, { status });
+  } });
+  for (const [http, upstream, code] of [
+    [400, { message: 'API key not valid: private-key', details: [{ reason: 'API_KEY_INVALID' }] }, 'GEMINI_KEY_INVALID'],
+    [403, { message: 'private-key denied' }, 'GEMINI_PERMISSION'],
+    [400, { message: 'User location is not supported for the API use. private-key' }, 'GEMINI_REGION'],
+    [404, { message: 'model missing private-key' }, 'GEMINI_MODEL_NOT_FOUND'],
+    [400, { message: 'private-key bad request' }, 'GEMINI_REQUEST_INVALID']
+  ]) {
+    status = http; payload = { error: upstream };
+    const response = await fetch(base + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Bonjour' }] }) });
+    assert.equal(response.status, 502);
+    const data = await response.json(); assert.equal(data.code, code); assert.match(data.error, new RegExp(`HTTP ${http}`)); assert.doesNotMatch(data.error, /private-key/);
+  }
 });
