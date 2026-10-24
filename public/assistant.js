@@ -7,7 +7,7 @@ $('close-chat').onclick = () => { $('chat').classList.add('hidden'); if (recorde
 document.addEventListener('keydown', e => { if (e.key === 'Escape') $('close-chat').click(); });
 function feedback(text) { $('chat-feedback').textContent = text; }
 function setBusy(value) { busy = value; $('send').disabled = value || !configured; $('record').disabled = value || !configured; $('audio-file').disabled = value || !configured; document.querySelectorAll('[data-prompt]').forEach(b => b.disabled = value || !configured); }
-fetch('/api/status').then(r => r.json()).then(data => { configured = data.configured; $('ai-status').textContent = configured ? 'مفتاح Gemini مُعدّ · لم يُختبر الاتصال' : 'يلزم إعداد اتصال Gemini'; if (!configured) feedback('أضف GEMINI_API_KEY في متغيرات بيئة Vercel ثم أعد النشر لتفعيل المساعد.'); setBusy(false); }).catch(() => { feedback('Impossible de joindre le serveur.'); setBusy(false); });
+fetch('/api/status').then(r => r.json()).then(data => { configured = data.configured; $('ai-status').textContent = configured ? 'مفتاح OpenAI مُعدّ · لم يُختبر الاتصال' : 'يلزم إعداد اتصال OpenAI'; if (!configured) feedback('أضف OPENAI_API_KEY في متغيرات بيئة Vercel ثم أعد النشر لتفعيل المساعد.'); setBusy(false); }).catch(() => { feedback('Impossible de joindre le serveur.'); setBusy(false); });
 function addMessage(role, text, allowApply = false) {
   const node = document.createElement('div'); node.className = `message ${role}`; node.dir = 'auto';
   const content = document.createElement('span'); content.textContent = text; node.append(content);
@@ -19,7 +19,7 @@ $('chat-form').onsubmit = async event => {
   event.preventDefault(); const text = $('chat-input').value.trim(); if (!text || busy || !configured) return;
   setBusy(true); feedback('المساعد يُحضّر الرد…'); addMessage('user', text); $('chat-input').value = '';
   const messages = [...history, { role: 'user', content: text }].slice(-19);
-  try { const data = await request('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages, letter: window.secretariatAI.letter() }) }); addMessage('assistant', data.reply, true); $('ai-status').textContent = 'متصل بـ Gemini'; history = [...messages, { role: 'assistant', content: data.reply }].slice(-18); feedback(''); }
+  try { const data = await request('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages, letter: window.secretariatAI.letter() }) }); addMessage('assistant', data.reply, true); $('ai-status').textContent = 'متصل بـ OpenAI'; history = [...messages, { role: 'assistant', content: data.reply }].slice(-18); feedback(''); }
   catch (error) { feedback(error.name === 'TimeoutError' ? 'Délai dépassé. Réessayez.' : error.message); $('chat-input').value = text; }
   finally { setBusy(false); }
 };
@@ -37,7 +37,7 @@ async function transcribe(blob) {
 $('record').onclick = async () => {
   if (recorder?.state === 'recording') { recorder.stop(); return; }
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { feedback('Enregistrement non pris en charge. Utilisez le bouton + pour joindre un audio.'); return; }
-  if (!confirm('Autoriser l’enregistrement ? Votre audio sera envoyé à Google Gemini pour transcription lorsque vous l’arrêterez (maximum 2 minutes).')) return;
+  if (!confirm('Autoriser l’enregistrement ? Votre audio sera envoyé à OpenAI pour transcription lorsque vous l’arrêterez (maximum 2 minutes).')) return;
   $('record').disabled = true;
   try {
     recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -51,7 +51,7 @@ $('record').onclick = async () => {
     recordingTimer = setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, 120000);
   } catch { recordingStream?.getTracks().forEach(t => t.stop()); setBusy(false); feedback('Microphone inaccessible. Vérifiez l’autorisation du navigateur ou joignez un fichier audio avec +.'); }
 };
-$('audio-file').onchange = async event => { const file = event.target.files[0]; if (file && confirm('Envoyer ce fichier audio à Google Gemini pour transcription ?')) await transcribe(file); event.target.value = ''; };
+$('audio-file').onchange = async event => { const file = event.target.files[0]; if (file && confirm('Envoyer ce fichier audio à OpenAI pour transcription ?')) await transcribe(file); event.target.value = ''; };
 window.addEventListener('pagehide', () => { recordingCancelled = true; recordingStream?.getTracks().forEach(t => t.stop()); clearTimeout(recordingTimer); });
 setBusy(false);
 
