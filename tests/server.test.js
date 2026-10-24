@@ -10,7 +10,7 @@ async function server(t, options = {}) {
 }
 test('serves the editor and reports missing AI configuration', async t => {
   const base = await server(t, { apiKey: '' });
-  assert.match(await (await fetch(base)).text(), /Atelier de lettres/);
+  assert.match(await (await fetch(base)).text(), /نظام المراسلات والأرشفة/);
   assert.deepEqual(await (await fetch(base + '/api/status')).json(), { configured: false });
   const response = await fetch(base + '/api/chat', { method: 'POST' });
   assert.equal(response.status, 503);

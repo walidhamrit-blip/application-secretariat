@@ -1,0 +1,43 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { JSDOM, VirtualConsole } from 'jsdom';
+
+test('original nine templates, stationery and RTL remain; edits survive rendering and archive values', async t => {
+  const errors = [];
+  const console = new VirtualConsole(); console.on('jsdomError', e => errors.push(e.message));
+  const source = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8').replace(/<script src="\/(model-editor|assistant)\.js"><\/script>/g, '');
+  const dom = new JSDOM(source, { url: 'https://example.test', runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: console, beforeParse(w) {
+    w.structuredClone = structuredClone; w.scrollTo = () => {};
+    w.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
+    w.confirm = () => true;
+    Object.defineProperty(w.HTMLElement.prototype, 'innerText', { get() { return this.textContent; }, set(value) { this.textContent = value; } });
+  } });
+  t.after(() => dom.window.close());
+  const w = dom.window;
+  w.eval(readFileSync(new URL('../public/model-editor.js', import.meta.url), 'utf8'));
+  w.eval(readFileSync(new URL('../public/assistant.js', import.meta.url), 'utf8'));
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.deepEqual(errors, []);
+  assert.equal(w.eval('TEMPLATES.length'), 9);
+  assert.equal(w.document.documentElement.dir, 'rtl');
+  w.eval("openComposer('att_work'); go('new');");
+  assert.equal(w.document.querySelectorAll('.model-layout [data-layout]').length, 8);
+  assert.ok(w.document.querySelector('#preview .lh-head img').src.startsWith('data:image/'));
+  const body = w.document.querySelector('#preview .l-body');
+  body.textContent = 'نص معدل'; body.dispatchEvent(new w.Event('input'));
+  w.eval('updatePreview()');
+  assert.equal(w.document.querySelector('#preview .l-body').textContent, 'نص معدل');
+  const size = w.document.querySelector('[data-layout="size"]'); size.value = 18; size.dispatchEvent(new w.Event('input'));
+  assert.equal(w.document.querySelector('#preview .sheet-content').style.fontSize, '18pt');
+  assert.equal(w.eval('currentValues()._bodyOverride'), 'نص معدل');
+  const printed = w.eval('renderSheetHTML(TPL_BY_ID.att_work, currentValues(), {})');
+  assert.match(printed, /نص معدل/); assert.match(printed, /18pt/);
+  w.document.getElementById('save-model-layout').click();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(w.eval('DB.settings.modelLayouts[`${activeCompany().id}:att_work`].size'), 18);
+  w.eval("freshComposer('att_work'); render('new');");
+  assert.equal(w.document.querySelector('#preview .sheet-content').style.fontSize, '18pt');
+  assert.notEqual(w.document.querySelector('#preview .l-body').textContent, 'نص معدل');
+  assert.deepEqual(errors, []);
+});
