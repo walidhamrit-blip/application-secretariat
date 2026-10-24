@@ -23,6 +23,35 @@ export function createApp({ apiKey = process.env.GEMINI_API_KEY, fetchImpl = fet
     next();
   });
   app.get('/api/status', (_, res) => res.json({ configured: Boolean(apiKey) }));
+  let modelCatalog;
+  async function modelDiagnostic(model) {
+    try {
+      if (!modelCatalog || modelCatalog.expires < Date.now()) {
+        const names = [];
+        let pageToken = '';
+        for (let page = 0; page < 3; page++) {
+          const url = new URL('https://generativelanguage.googleapis.com/v1beta/models');
+          url.searchParams.set('pageSize', '100');
+          if (pageToken) url.searchParams.set('pageToken', pageToken);
+          const response = await fetchImpl(url.toString(), { headers: { 'x-goog-api-key': apiKey }, signal: AbortSignal.timeout(8000) });
+          if (!response.ok) return `تعذر جلب قائمة النماذج من Google (MODEL_LIST_HTTP_${response.status}).`;
+          const data = await response.json();
+          for (const item of Array.isArray(data.models) ? data.models : []) {
+            if (typeof item.name === 'string' && /^models\/gemini-[a-z0-9.-]+$/.test(item.name) && item.supportedGenerationMethods?.includes('generateContent')) names.push(item.name.slice(7));
+          }
+          pageToken = data.nextPageToken;
+          if (!pageToken) break;
+        }
+        modelCatalog = { names, expires: Date.now() + 300000 };
+      }
+      const names = modelCatalog.names;
+      if (names.includes(model)) return 'النموذج موجود في قائمة Google، لكن طلب التوليد أعاد 404. أرسل هذا التشخيص للدعم لفحص التوافق، ولا تغيّر المفتاح عشوائياً.';
+      const alternatives = names.filter(name => !/tts|image|live|audio|robotics|computer|research/.test(name)).sort((a, b) => Number(b.includes('flash')) - Number(a.includes('flash')) || a.localeCompare(b)).slice(0, 8);
+      return alternatives.length ? `النماذج التي تعرضها Google لهذا المفتاح (تحقق من دعم الصوت قبل اختيارها): ${alternatives.join(', ')}. ضع المعرّف المناسب في GEMINI_MODEL ثم أعد النشر.` : 'لم تُرجع Google نموذج Gemini نصياً مناسباً بهذه الصلاحيات. تحقق من مشروع المفتاح وتفعيل الخدمة.';
+    } catch {
+      return 'تعذر التحقق من قائمة النماذج المتاحة من Google. حاول لاحقاً.';
+    }
+  }
   async function generate(contents, systemInstruction) {
     const model = process.env.GEMINI_MODEL?.trim().replace(/^models\//, '') || 'gemini-2.5-flash';
     const response = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -42,7 +71,7 @@ export function createApp({ apiKey = process.env.GEMINI_API_KEY, fetchImpl = fet
       else if (reasons.includes('API_KEY_INVALID') || reasons.includes('API_KEY_EXPIRED') || /API key not valid|API key expired/i.test(message) || response.status === 401) { code = 'GEMINI_KEY_INVALID'; help = 'مفتاح Gemini غير صالح أو منتهي. انسخ قيمته الكاملة إلى GEMINI_API_KEY في Vercel ثم أعد النشر.'; }
       else if (/location is not supported|not available in your country|unsupported location/i.test(message)) { code = 'GEMINI_REGION'; help = 'Gemini غير متاح في منطقة اتصال الخادم أو حساب Google. تحقق من المناطق المدعومة وإعدادات حسابك.'; }
       else if (response.status === 403) { code = 'GEMINI_PERMISSION'; help = 'Google رفض صلاحية الوصول. تحقق من تفعيل Generative Language API وقيود المفتاح والمشروع في Google Cloud. مفتاح الخادم لا يستخدم قيود مواقع المتصفح.'; }
-      else if (response.status === 404) { code = 'GEMINI_MODEL_NOT_FOUND'; help = 'نموذج Gemini غير متاح لهذا الطلب. تحقق من GEMINI_MODEL في Vercel ومن توفر النموذج لحسابك ثم أعد النشر.'; }
+      else if (response.status === 404) { code = 'GEMINI_MODEL_NOT_FOUND'; help = 'نموذج Gemini المطلوب غير موجود لهذا الاستدعاء. ' + await modelDiagnostic(model); }
       else if (response.status === 400) { code = 'GEMINI_REQUEST_INVALID'; help = 'Google رفض صيغة الطلب. تحقق من النموذج وصيغة الملف إن أرسلت صوتاً. إذا استمر الخطأ فأرسل رمز التشخيص فقط.'; }
       const error = new Error(`${help} (${code} · HTTP ${response.status})`);
       error.diagnosticCode = code;

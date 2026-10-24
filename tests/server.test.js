@@ -80,3 +80,24 @@ test('safe Gemini diagnostics identify key, permission, region, model and reques
     const data = await response.json(); assert.equal(data.code, code); assert.match(data.error, new RegExp(`HTTP ${http}`)); assert.doesNotMatch(data.error, /private-key/);
   }
 });
+test('404 diagnostics query actual Google model catalog without retrying generation', async t => {
+  let catalogCalls = 0, generationCalls = 0;
+  const base = await server(t, { apiKey: 'private-key', fetchImpl: async (url, options) => {
+    assert.equal(options.headers['x-goog-api-key'], 'private-key');
+    if (url.includes(':generateContent')) { generationCalls++; return Response.json({}, { status: 404 }); }
+    catalogCalls++;
+    return Response.json({ models: [
+      { name: 'models/gemini-example-flash', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/gemini-example-tts', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/gemini-embedding', supportedGenerationMethods: ['embedContent'] }
+    ] });
+  } });
+  for (let i = 0; i < 2; i++) {
+    const response = await fetch(base + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Bonjour' }] }) });
+    const data = await response.json();
+    assert.equal(data.code, 'GEMINI_MODEL_NOT_FOUND');
+    assert.match(data.error, /gemini-example-flash/);
+    assert.doesNotMatch(data.error, /gemini-example-tts|gemini-embedding|private-key/);
+  }
+  assert.equal(generationCalls, 2); assert.equal(catalogCalls, 1);
+});
