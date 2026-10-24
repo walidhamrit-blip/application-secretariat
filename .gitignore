@@ -1,3 +1,7 @@
 node_modules/
 .env
 coverage/
+
+.venv/
+.models/
+__pycache__/

@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../server.js';
-
+const transcriber = { status: async () => ({ installed: true, downloaded: true }), transcribe: async () => 'Mon message vocal' };
 async function server(t, options = {}) {
-  const instance = createApp(options).listen(0, '127.0.0.1');
+  const instance = createApp({ transcriber, ...options }).listen(0, '127.0.0.1');
   await new Promise(resolve => instance.once('listening', resolve));
   t.after(() => new Promise(resolve => instance.close(resolve)));
   return `http://127.0.0.1:${instance.address().port}`;
@@ -11,70 +11,63 @@ async function server(t, options = {}) {
 function chat(base, body = { messages: [{ role: 'user', content: 'Bonjour' }], letter: 'Courrier de référence' }) {
   return fetch(base + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
-test('editor remains Arabic; missing OpenAI configuration is explicit', async t => {
-  const base = await server(t, { apiKey: '' });
+test('editor remains Arabic; status checks actual local model and audio availability', async t => {
+  const base = await server(t, { fetchImpl: async url => {
+    assert.equal(String(url), 'http://127.0.0.1:11434/api/tags');
+    return Response.json({ models: [{ name: 'qwen2.5:3b' }] });
+  } });
   assert.match(await (await fetch(base)).text(), /نظام المراسلات والأرشفة/);
-  assert.deepEqual(await (await fetch(base + '/api/status')).json(), { configured: false });
-  const response = await chat(base); assert.equal(response.status, 503); assert.match(await response.text(), /OPENAI_API_KEY/);
+  const data = await (await fetch(base + '/api/status')).json();
+  assert.equal(data.configured, true); assert.equal(data.audioReady, true); assert.equal(data.provider, 'ollama');
 });
-test('chat sends OpenAI messages and reference document with server-side bearer authentication', async t => {
+test('status reports missing Ollama or missing downloaded model truthfully', async t => {
+  let offline = true;
+  const base = await server(t, { transcriber: { status: async () => ({ installed: false }) }, fetchImpl: async () => {
+    if (offline) throw Error('unreachable');
+    return Response.json({ models: [] });
+  } });
+  let data = await (await fetch(base + '/api/status')).json();
+  assert.equal(data.configured, false); assert.equal(data.audioReady, false); assert.match(data.message, /Ollama/);
+  offline = false; data = await (await fetch(base + '/api/status')).json(); assert.match(data.message, /ollama pull qwen2.5:3b/);
+});
+test('chat sends document to loopback Ollama only without API credentials', async t => {
   let sent;
-  const base = await server(t, { apiKey: '  private-key  ', fetchImpl: async (url, options) => {
-    assert.equal(url, 'https://api.openai.com/v1/chat/completions');
-    assert.equal(options.headers.Authorization, 'Bearer private-key');
-    sent = JSON.parse(options.body);
-    return Response.json({ choices: [{ finish_reason: 'stop', message: { content: 'Bonjour !' } }] });
+  const base = await server(t, { fetchImpl: async (url, options) => {
+    assert.equal(String(url), 'http://127.0.0.1:11434/api/chat');
+    assert.equal(options.headers.Authorization, undefined);
+    assert.equal(options.redirect, 'error');
+    sent = JSON.parse(options.body); return Response.json({ message: { content: 'Bonjour !' }, done: true });
   } });
   assert.equal((await chat(base, { messages: [{ role: 'system', content: 'invalid' }] })).status, 400);
-  const response = await chat(base); assert.deepEqual(await response.json(), { reply: 'Bonjour !' });
-  assert.equal(sent.model, 'gpt-4o-mini'); assert.equal(sent.messages[0].role, 'system');
-  assert.match(sent.messages[1].content, /Courrier de référence/); assert.equal(sent.messages[2].content, 'Bonjour');
+  assert.deepEqual(await (await chat(base)).json(), { reply: 'Bonjour !' });
+  assert.equal(sent.model, 'qwen2.5:3b'); assert.equal(sent.stream, false); assert.match(sent.messages[1].content, /Courrier de référence/);
 });
-test('audio uses OpenAI multipart transcription with correct filename and no JSON content type', async t => {
+test('audio is sent to local transcriber not an external API', async t => {
   let calls = 0;
-  const base = await server(t, { apiKey: 'test', fetchImpl: async (url, options) => {
-    calls++; assert.equal(url, 'https://api.openai.com/v1/audio/transcriptions');
-    assert.equal(options.headers.Authorization, 'Bearer test'); assert.equal(options.headers['Content-Type'], undefined);
-    assert.equal(options.body.get('model'), 'whisper-1'); assert.equal(options.body.get('file').name, 'message.ogg');
-    assert.equal(await options.body.get('file').text(), 'test audio'); return Response.json({ text: 'Mon message vocal' });
-  } });
+  const base = await server(t, { fetchImpl: async () => assert.fail('No network for audio'), transcriber: { ...transcriber, transcribe: async (buffer, extension) => {
+    calls++; assert.equal(buffer.toString(), 'test audio'); assert.equal(extension, 'ogg'); return 'Mon message vocal';
+  } } });
   const bad = new FormData(); bad.append('audio', new Blob(['text'], { type: 'text/plain' }), 'bad.txt');
   assert.equal((await fetch(base + '/api/transcribe', { method: 'POST', body: bad })).status, 400); assert.equal(calls, 0);
   const audio = new FormData(); audio.append('audio', new Blob(['test audio'], { type: 'audio/ogg' }), 'recording.ogg');
-  const response = await fetch(base + '/api/transcribe', { method: 'POST', body: audio });
-  assert.deepEqual(await response.json(), { text: 'Mon message vocal' });
+  assert.deepEqual(await (await fetch(base + '/api/transcribe', { method: 'POST', body: audio })).json(), { text: 'Mon message vocal' });
 });
-test('OpenAI diagnostics never expose credentials or raw provider messages', async t => {
-  let status = 401, payload = {};
-  const base = await server(t, { apiKey: 'private-key', fetchImpl: async () => Response.json(payload, { status }) });
-  for (const [http, providerCode, code] of [
-    [401, '', 'OPENAI_KEY_INVALID'], [403, '', 'OPENAI_PERMISSION'], [404, '', 'OPENAI_MODEL_NOT_FOUND'],
-    [429, 'insufficient_quota', 'OPENAI_QUOTA'], [429, 'rate_limit_exceeded', 'OPENAI_RATE_LIMIT'],
-    [400, '', 'OPENAI_REQUEST_INVALID'], [500, '', 'OPENAI_UNAVAILABLE']
-  ]) {
-    status = http; payload = { error: { code: providerCode, message: 'private-key sensitive-provider-detail' } };
-    const response = await chat(base); const data = await response.json();
-    assert.equal(response.status, 502); assert.equal(data.code, code);
-    assert.doesNotMatch(data.error, /private-key|sensitive-provider-detail/);
-  }
+test('offline, missing model and empty replies produce actionable errors', async t => {
+  let mode = 'offline';
+  const base = await server(t, { fetchImpl: async () => {
+    if (mode === 'offline') throw Error('network');
+    if (mode === 'missing') return Response.json({}, { status: 404 });
+    return Response.json({ message: { content: '' } });
+  } });
+  assert.match(await (await chat(base)).text(), /Ollama/);
+  mode = 'missing'; assert.match(await (await chat(base)).text(), /ollama pull/);
+  mode = 'empty'; assert.equal((await chat(base)).status, 502);
 });
-test('rejects cross-origin requests and malformed JSON', async t => {
-  const base = await server(t, { apiKey: 'test' });
+test('rejects cross-origin requests, malformed JSON, remote Ollama hosts and oversized audio', async t => {
+  assert.throws(() => createApp({ ollamaUrl: 'https://example.com' }), /local/);
+  const base = await server(t, { fetchImpl: async () => assert.fail('No network expected') });
   assert.equal((await fetch(base + '/api/chat', { method: 'POST', headers: { Origin: 'https://untrusted.example' } })).status, 403);
   assert.equal((await fetch(base + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{' })).status, 400);
-});
-test('rejects oversized audio without calling OpenAI', async t => {
-  const base = await server(t, { apiKey: 'test', fetchImpl: async () => assert.fail('Provider must not be called') });
   const form = new FormData(); form.append('audio', new Blob([new Uint8Array(3 * 1024 * 1024 + 1)], { type: 'audio/webm' }), 'large.webm');
   assert.equal((await fetch(base + '/api/transcribe', { method: 'POST', body: form })).status, 400);
-});
-test('rejects empty or incomplete assistant responses and empty transcriptions', async t => {
-  let result = { choices: [] };
-  const base = await server(t, { apiKey: 'test', fetchImpl: async () => Response.json(result) });
-  assert.equal((await chat(base)).status, 502);
-  result = { choices: [{ finish_reason: 'length', message: { content: 'partial' } }] };
-  assert.equal((await chat(base)).status, 502);
-  result = { text: '  ' };
-  const audio = new FormData(); audio.append('audio', new Blob(['audio'], { type: 'audio/webm' }), 'voice.webm');
-  assert.equal((await fetch(base + '/api/transcribe', { method: 'POST', body: audio })).status, 502);
 });

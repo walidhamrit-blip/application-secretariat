@@ -1,59 +1,64 @@
-# نظام المراسلات والأرشفة — السكرتارية
+# السكرتارية — Application locale gratuite
 
-Application arabe d’origine restaurée depuis `walidhamrit-blip/secretariat-` (fichier `index.html`), enrichie sans remplacer les modèles. Les polices, logos, en-têtes et pieds de page d’origine sont intégrés dans le HTML.
+Application arabe d’origine de `walidhamrit-blip/secretariat-`, avec ses **9 modèles**, les deux sociétés, les logos et en-têtes intégrés, les employés, la numérotation, les archives, la recherche, les sauvegardes et l’impression/PDF.
 
-## Fonctionnalités conservées
+L’interface et la lecture sont **de droite à gauche**. Le texte se modifie directement dans l’aperçu. « تعديل تنسيق النموذج الحالي » règle police, taille, interligne, marges et alignement ; « حفظ التنسيق لهذا النموذج » conserve les réglages par société/modèle. Archiver ou enregistrer comme brouillon pour conserver les modifications d’un courrier. « استعادة النص الأصلي من الحقول » revient au texte généré.
 
-- Deux sociétés : الصداقة المثالية (alimentaire AIS et matériaux AIS-BM).
-- Les **9 modèles d’origine** : travail, salaire, ancienneté, fin de service, mission, congé, note interne, correspondance officielle et texte libre.
-- Tableau de bord, employés, références, archives locales, recherche, export/import de sauvegarde, modèles de papier à en-tête et impression/PDF.
-- Interface arabe et lecture **de droite à gauche**.
+## IA gratuite, sur votre ordinateur
 
-## Ajouts sur les modèles existants
+- **Ollama**, modèle `qwen2.5:3b` : conversation, rédaction et traduction français/arabe.
+- **faster-whisper**, modèle multilingue `small`, CPU int8 : transcription des messages vocaux en local. Ce n’est pas une synthèse vocale.
+- Aucune clé API, aucun crédit OpenAI ou Google, aucun abonnement. Le coût matériel/électricité reste à votre charge.
+- Internet est nécessaire pour installer les logiciels et télécharger les modèles ; après installation complète, la conversation et la transcription fonctionnent hors ligne. Aucun téléchargement n’est déclenché automatiquement par un message vocal.
+- La vitesse et la qualité dépendent du PC. Prévoir plusieurs Go de disque libre ; 8 Go de RAM est un point de départ, 16 Go est préférable, sans garantie de fluidité. Un petit modèle local peut être moins performant qu’un service distant : relire les courriers avant utilisation.
 
-Dans « خطاب جديد », choisir un modèle d’origine puis ouvrir **« تعديل تنسيق النموذج الحالي »** : taille/police, interligne, marges, alignement et direction. L’aperçu et l’impression utilisent les mêmes réglages. « حفظ التنسيق لهذا النموذج » mémorise les réglages par société et par modèle sans remplacer sa papeterie.
+## Installation Windows — une seule fois
 
-Cliquer directement dans le corps du courrier dans l’aperçu pour modifier son texte. Le texte devient alors une version manuelle, indépendante des champs ; « استعادة النص الأصلي من الحقول » restaure le texte généré. **Archiver ou enregistrer comme brouillon** pour conserver le texte et ses réglages avec le courrier. Les en-têtes et pieds de page se modifient toujours dans la rubrique sociétés/papeterie d’origine.
+1. Installer **Node.js 22 LTS ou plus récent** : https://nodejs.org
+2. Installer **Ollama** : https://ollama.com/download/windows et ouvrir l’application.
+3. Installer **Python 3.11 ou 3.12 64 bits** : https://www.python.org/downloads/windows/ ; conserver le lanceur `py`.
+4. Sur GitHub, sélectionner la branche **`arena/c8365eea-application-secretariat`** du dépôt **`walidhamrit-blip/application-secretariat`**, puis **Code → Download ZIP**. Extraire complètement le ZIP dans un dossier personnel non partagé. Ne pas exécuter depuis l’intérieur du ZIP.
+5. Double-cliquer sur **`installer-local.bat`**. Laisser Internet actif et Ollama ouvert. Le script installe les dépendances Node/Python, télécharge `qwen2.5:3b` et Whisper `small`. Plusieurs Go peuvent être téléchargés. S’il affiche une erreur, corriger puis relancer ; ne pas ignorer l’erreur.
+6. Une fois l’installation terminée, lancer **`demarrer-local.bat`**, garder sa fenêtre ouverte, et ouvrir **http://localhost:3000**.
 
-L’assistant OpenAI est disponible via le bouton **المساعد الذكي** : messages écrits, microphone (HTTPS/localhost, autorisation requise, 2 minutes maximum), import audio (WebM/Ogg/MP4/MP3/WAV, **3 Mo maximum**), transcription à relire avant envoi, application d’une réponse au corps du courrier après confirmation. La réponse ne remplace jamais les en-têtes ni le modèle.
+Le site n’est pas une page à ouvrir directement par double-clic sur `index.html` : le serveur local est nécessaire pour l’IA. Ce serveur écoute par défaut uniquement sur `127.0.0.1`, sans exposition au réseau. Les modèles ne sont pas adaptés à un hébergement Vercel ; cette version est destinée au PC.
 
-## Installation
+## À chaque utilisation
 
-Node.js 22 ou plus récent :
+- Ouvrir Ollama, puis **`demarrer-local.bat`**.
+- Ouvrir **http://localhost:3000**. Le port 3000 doit être libre ; ne pas démarrer plusieurs copies.
+- Cliquer sur **المساعد الذكي**. Son état vérifie que le modèle Ollama et le moteur vocal sont installés. Après correction d’une installation, fermer et rouvrir le panneau pour revérifier.
+- Pour un vocal, autoriser le microphone, parler puis arrêter (2 minutes maximum). Le bouton `+` importe aussi un audio de 3 Mo maximum. La transcription doit être relue avant envoi. Le premier chargement peut être lent ; le délai maximal est de 5 minutes par traitement. Une seule transcription à la fois.
+- Fermer la fenêtre serveur pour arrêter le site. Les modèles téléchargés restent sur le disque.
+
+## Sauvegarder et transférer les archives
+
+Les archives sont dans le **navigateur**, avec la clé d’origine `sirr_secretariat_v2`. Une nouvelle adresse web possède un stockage distinct : avant de quitter l’ancien site, utiliser **الإعدادات → تصدير نسخة احتياطية (JSON)**, puis importer cette sauvegarde dans la version locale. Changer de navigateur ou de port change aussi le stockage. Exporter régulièrement les sauvegardes dans un endroit sûr. Ne pas effacer les données du navigateur sans sauvegarde.
+
+La conversation reste en mémoire de l’onglet. Ollama reçoit les messages et le courrier ouvert uniquement sur la boucle locale. Les audios sont écrits dans un fichier temporaire local pour Python puis supprimés après traitement (y compris en cas d’erreur normale ; un arrêt brutal du processus peut laisser un fichier temporaire dans le dossier temporaire du système). Aucun audio n’est envoyé à OpenAI ou Google. Ne pas exposer le serveur sur Internet : il n’a pas d’authentification.
+
+## Installation manuelle (macOS/Linux ou dépannage)
+
+Avec Node.js 22+, Python 3.11/3.12 et Ollama installés :
 
 ```sh
 npm ci
-cp .env.example .env
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-local.txt
+ollama pull qwen2.5:3b
+.venv/bin/python scripts/transcribe.py --download
 npm start
 ```
 
-Ouvrir http://localhost:3000. Le serveur écoute sur `0.0.0.0`. Ajouter une clé API OpenAI à `OPENAI_API_KEY` dans `.env` pour activer l’assistant. Modèles configurables : `OPENAI_CHAT_MODEL=gpt-4o-mini` et `OPENAI_TRANSCRIPTION_MODEL=whisper-1`. Ne jamais partager ou versionner la clé.
+Ollama doit déjà être lancé. La transcription utilise PyAV, sans installation manuelle de ffmpeg normalement nécessaire. Les paquets doivent disposer de binaires compatibles avec votre système.
 
-## Vercel
-
-- Dépôt : **walidhamrit-blip/application-secretariat**, branche **arena/c8365eea-application-secretariat**.
-- Preset **Other**, racine `./`, sans commande de build personnalisée. `vercel.json` définit `public` comme sortie statique et `/api/*` vers la fonction Express.
-- Ajouter `OPENAI_API_KEY` aux variables d’environnement du projet pour Production et éventuellement Preview, puis redéployer.
-- L’accès réseau à `api.openai.com` et un crédit API OpenAI disponible sont requis. Les appels réels ne sont pas vérifiables dans le réseau restreint de cet environnement de développement.
-
-## Données et confidentialité
-
-L’application déployée ici utilise **l’archivage local du navigateur**, pas le serveur Python d’archives partagées du dépôt d’origine. Les données ne sont ni synchronisées ni transférées automatiquement entre les adresses web. Avant de quitter l’ancien site, utiliser **الإعدادات → تصدير نسخة احتياطية (JSON)**, puis importer cette sauvegarde dans la nouvelle application. La clé de stockage d’origine `sirr_secretariat_v2` est conservée pour une mise à jour sur la même origine. Les images personnelles restent dans les sauvegardes locales.
-
-Le courrier ouvert et les messages envoyés sont transmis à OpenAI ; après consentement, les audios sont également transmis pour transcription. Les conversations restent en mémoire dans l’onglet ; le serveur ne conserve pas les audios sur disque. Les politiques et quotas OpenAI s’appliquent. Ne pas transmettre de données sensibles sans autorisation.
-
-Cette version n’a pas d’authentification serveur pour l’IA : protéger son accès avant de l’exposer avec une clé payante. Le limiteur en mémoire de 20 requêtes/minute/IP n’est pas une protection de production et n’est pas partagé entre instances Vercel.
+`.env` est facultatif : aucune clé n’est nécessaire. Les anciennes variables `OPENAI_*` et `GEMINI_*` sont ignorées. Options décrites dans `.env.example` : `OLLAMA_MODEL`, `OLLAMA_URL` (HTTP local uniquement), `PYTHON_PATH`, `HOST`, `PORT`. Un autre modèle doit être téléchargé par `ollama pull NOM`, et son nom configuré dans `OLLAMA_MODEL`. Conserver `HOST=127.0.0.1` sur le PC. Les modèles et le venv sont exclus de Git (`.models/`, `.venv/`).
 
 ## Vérification
 
 ```sh
 npm test
+python scripts/transcribe.py --check
 ```
 
-Tests HTTP avec OpenAI simulé et test DOM de l’application restaurée : neuf modèles, en-têtes intégrés, RTL, édition directe, mise en page, persistance des réglages, données d’impression, validation audio, erreurs et quotas.
-
-## Passage de Gemini à OpenAI
-
-Le chatbot et la transcription utilisent désormais exclusivement OpenAI. Les modèles de lettres, les données locales, la mise en page et le RTL sont inchangés. Les anciennes variables `GEMINI_API_KEY` et `GEMINI_MODEL` ne sont plus lues et peuvent être retirées de Vercel.
-
-Créer une clé sur https://platform.openai.com/api-keys et la saisir uniquement dans `OPENAI_API_KEY` côté serveur (Production et Preview si nécessaire), puis redéployer. Ne pas utiliser une clé Google. Une facturation API active est nécessaire : l’abonnement ChatGPT ne fournit pas de crédit API. Les modèles par défaut sont définis dans le code ; les deux variables de modèles sont facultatives.
+Tests DOM : neuf modèles d’origine, en-têtes, RTL, édition, mise en page et données d’impression. Tests serveur : état réel du moteur local, requêtes Ollama simulées limitées à la boucle locale, audio local simulé, validation et erreurs. Les modèles lourds et les scripts Windows ne sont pas exécutés dans le bac à sable de développement ; un essai réel sur votre PC reste nécessaire.
