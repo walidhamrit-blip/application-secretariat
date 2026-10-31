@@ -6,7 +6,7 @@
 <title>تطبيق السكرتارية — شركة الصداقة | الخطابات وجداول البيانات الداخلية</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=6" />
+<link rel="stylesheet" href="assets/css/style.css?v=7" />
 </head>
 <body>
 
@@ -29,12 +29,16 @@
 <div class="layout">
   <!-- ===== Sidebar ===== -->
   <aside class="sidebar no-print">
-    <nav class="nav">
+    <nav class="nav" aria-label="القائمة الرئيسية">
+      <div class="nav-heading">العمل اليومي</div>
       <button class="nav-item active" data-view="templates" type="button">🗂️ <span>نماذج الخطابات</span></button>
       <button class="nav-item" data-view="editor" type="button">✍️ <span>محرر الخطاب</span></button>
-      <button class="nav-item" data-view="letters" type="button">📁 <span>الخطابات المحفوظة</span> <b class="badge" id="lettersCount">0</b></button>
-      <button class="nav-item" data-view="tables" type="button">📊 <span>جداول البيانات الداخلية</span> <b class="badge" id="tablesCount">0</b></button>
+      <button class="nav-item" data-view="tables" type="button">📊 <span>نماذج الجداول</span></button>
+      <div class="nav-heading">الملفات المحفوظة</div>
+      <button class="nav-item" data-view="letters" type="button">📁 <span>الأرشيف: الخطابات والجداول</span></button>
+      <div class="nav-heading">الإعدادات</div>
       <button class="nav-item" data-view="companies" type="button">🏢 <span>الشركات والشعارات</span></button>
+      <div class="archive-counts">الخطابات: <b id="lettersCount">0</b> · الجداول: <b id="tablesCount">0</b></div>
     </nav>
 
     <button class="btn btn-primary btn-block" id="btnVehiclesSide" type="button">🚗 كشف صلاحية السيارات</button>
@@ -64,6 +68,10 @@
         <button class="quick-card gold" type="button" data-goto="tables">
           <span class="quick-icon">📊</span>
           <span><strong>جداول البيانات الداخلية</strong><small>كشف صلاحية السيارات لمجموعة الشركات والمالك + 8 نماذج أخرى</small></span>
+        </button>
+        <button class="quick-card archive-card" type="button" data-goto="letters">
+          <span class="quick-icon">📁</span>
+          <span><strong>الأرشيف</strong><small>افتح الخطابات والجداول المحفوظة، وعدّلها أو اطبعها</small></span>
         </button>
         <button class="quick-card" type="button" data-goto="companies">
           <span class="quick-icon">🏢</span>
@@ -176,11 +184,13 @@
     <section class="view" id="view-letters">
       <div class="view-head no-print">
         <div>
-          <h2>📁 الخطابات المحفوظة</h2>
-          <p>كل الخطابات التي حفظتها — يمكنك فتحها وتعديلها أو طباعتها من جديد.</p>
+          <h2>📁 الأرشيف — الخطابات والجداول المحفوظة</h2>
+          <p>هنا تجد أعمالك المحفوظة، ويمكنك فتحها وتعديلها أو طباعتها.</p>
         </div>
         <button class="btn btn-primary" id="btnNewLetter2" type="button">📝 خطاب جديد</button>
       </div>
+      <div class="archive-notice no-print">💡 تُحفظ الملفات في متصفح هذا الجهاز فقط، وليست على الإنترنت. قد تُفقد عند مسح بيانات المتصفح أو استخدام جهاز آخر.</div>
+      <h3 class="section-title">✉️ أرشيف الخطابات</h3>
       <div class="toolbar no-print">
         <input type="search" id="letterSearch" placeholder="🔍 ابحث برقم المرجع أو الموضوع أو المستلم…" />
       </div>
@@ -190,6 +200,14 @@
         <h3>لا توجد خطابات محفوظة بعد</h3>
         <p>افتح محرر الخطاب، اختر نموذجاً مثل «تسليم قيمة»، ثم اضغط «حفظ الخطاب».</p>
         <button class="btn btn-gold btn-lg" data-goto-editor type="button">✍️ إنشاء خطاب جديد</button>
+      </div>
+      <h3 class="section-title">📊 أرشيف الجداول</h3>
+      <div class="toolbar no-print"><input type="search" id="savedTableSearch" placeholder="🔍 ابحث بعنوان الجدول أو الفترة…" /></div>
+      <div id="savedTablesList" class="letters-list"></div>
+      <div class="empty" id="savedTablesEmpty" hidden>
+        <div class="empty-icon">📋</div><h3>لا توجد جداول محفوظة مطابقة</h3>
+        <p>افتح نموذج جدول واحفظه، أو جرّب عبارة بحث أخرى.</p>
+        <button class="btn btn-outline" type="button" data-goto="tables">📊 نماذج الجداول</button>
       </div>
     </section>
     <!-- ===== View: Internal data tables ===== -->
@@ -229,13 +247,7 @@
           <button class="btn btn-gold btn-lg" id="btnNewTableTemplateEmpty" type="button">➕ نموذج جدول جديد</button>
         </div>
 
-        <h3 class="section-title">💾 الجداول المحفوظة</h3>
-        <div id="savedTablesList" class="letters-list"></div>
-        <div class="empty" id="savedTablesEmpty" hidden>
-          <div class="empty-icon">📋</div>
-          <h3>لا توجد جداول محفوظة بعد</h3>
-          <p>افتح «كشف صلاحية السيارات» كمثال، عدّل بيانات سيارات الشركات والمالك، ثم اضغط «حفظ الجدول».</p>
-        </div>
+        <p class="archive-link">📁 للعثور على الجداول التي حفظتها، افتح <button type="button" class="text-link" data-goto="letters">الأرشيف</button>.</p>
       </div>
 
       <!-- Table editor -->
@@ -444,6 +456,6 @@
 
 <div class="toast" id="toast" hidden></div>
 
-<script src="assets/js/app.js?v=6"></script>
+<script src="assets/js/app.js?v=7"></script>
 </body>
 </html>

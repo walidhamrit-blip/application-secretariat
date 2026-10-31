@@ -120,7 +120,7 @@ function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === name));
   if (name === 'templates') renderTemplates();
-  if (name === 'letters') renderLetters();
+  if (name === 'letters') { renderLetters(); renderSavedTables(); updateBadges(); }
   if (name === 'tables') { renderCompaniesStrip(); renderTableTemplates(); renderSavedTables(); updateBadges(); }
   if (name === 'companies') renderCompanies();
 }
@@ -342,7 +342,7 @@ $('#letterForm').addEventListener('submit', (e) => {
   } else {
     currentLetterId = uid();
     letters.unshift({ id: currentLetterId, ...data });
-    toast('✅ تم حفظ الخطاب في «الخطابات المحفوظة»');
+    toast('✅ تم حفظ الخطاب في «الأرشيف»');
   }
   save(LS_LETTERS, letters); renderTemplates();
 });
@@ -1005,11 +1005,13 @@ $('#btnSaveTable').addEventListener('click', () => {
   };
   if (currentTableId) savedTables = savedTables.map(t => t.id === currentTableId ? { ...t, ...data } : t);
   else { currentTableId = uid(); savedTables.unshift({ id: currentTableId, ...data }); }
-  save(LS_TABLES, savedTables); renderSavedTables(); updateBadges(); toast('✅ تم حفظ الجدول في «الجداول المحفوظة»');
+  save(LS_TABLES, savedTables); renderSavedTables(); updateBadges(); toast('✅ تم حفظ الجدول في «الأرشيف»');
 });
 function renderSavedTables() {
   const list = $('#savedTablesList'); if (!list) return;
-  list.innerHTML = savedTables.map(t => `
+  const query = ($('#savedTableSearch').value || '').trim().toLocaleLowerCase();
+  const matching = savedTables.filter(t => [t.title, t.period, t.date, t.company].some(value => String(value || '').toLocaleLowerCase().includes(query)));
+  list.innerHTML = matching.map(t => `
     <div class="letter-row">
       <div><h4>${esc(t.templateSnapshot?.icon || '📋')} ${esc(t.title)}</h4>
       <p>الفترة: ${esc(t.period || '—')} • التاريخ: ${esc(t.date || '—')} • الصفوف: ${(t.rows || []).length} • الترويسة: ${t.companyMode === 'group' ? 'الشركتين معاً' : esc(t.company || 'شركة واحدة')}</p></div>
@@ -1019,8 +1021,9 @@ function renderSavedTables() {
         <button class="btn btn-danger btn-sm" data-del-saved="${t.id}">🗑️ حذف</button>
       </div>
     </div>`).join('');
-  $('#savedTablesEmpty').hidden = savedTables.length > 0;
+  $('#savedTablesEmpty').hidden = matching.length > 0;
 }
+$('#savedTableSearch').addEventListener('input', renderSavedTables);
 $('#savedTablesList').addEventListener('click', (e) => {
   const open = e.target.closest('[data-open-table]'), pr = e.target.closest('[data-print-saved]'), del = e.target.closest('[data-del-saved]');
   const item = savedTables.find(t => t.id === (open?.dataset.openTable || pr?.dataset.printSaved || del?.dataset.delSaved));
