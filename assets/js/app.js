@@ -110,7 +110,7 @@ let editingTemplateId = null;   // null = إنشاء نموذج جديد
 let currentLetterId = null;
 
 function load(key, fallback) { try { const v = JSON.parse(localStorage.getItem(key)); return v ?? fallback; } catch { return fallback; } }
-function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (err) { console.warn('localStorage indisponible:', err); } }
 
 /* ---------- تنقل بين الأقسام ---------- */
 function showView(name) {
@@ -695,12 +695,21 @@ $('#tableTemplatesGrid').addEventListener('click', (e) => {
 });
 
 /* ---------- نموذج جدول جديد ---------- */
-function openTableTemplateModal() { $('#tableTemplateError').hidden = true; $('#tableTemplateModal').hidden = false; setTimeout(() => $('#ttName').focus(), 50); }
-function closeTableTemplateModal() { $('#tableTemplateModal').hidden = true; }
+function openTableTemplateModal() {
+  const modal = $('#tableTemplateModal');
+  $('#tableTemplateError').hidden = true;
+  modal.hidden = false; modal.style.display = ''; // ré-ouvre même si fermée via style inline
+  setTimeout(() => $('#ttName').focus(), 50);
+}
+function closeTableTemplateModal() {
+  const modal = $('#tableTemplateModal');
+  modal.hidden = true; modal.style.display = 'none'; // double sécurité avec la règle CSS [hidden]
+}
 ['btnNewTableTemplate', 'btnNewTableTemplateEmpty'].forEach(id => document.getElementById(id)?.addEventListener('click', openTableTemplateModal));
 $('#btnCloseTableModal').addEventListener('click', closeTableTemplateModal);
 $('#btnCancelTableModal').addEventListener('click', closeTableTemplateModal);
 $('#tableTemplateModal').addEventListener('click', (e) => { if (e.target.id === 'tableTemplateModal') closeTableTemplateModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTableTemplateModal(); });
 $('#tableTemplateForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const name = $('#ttName').value.trim();
@@ -717,10 +726,16 @@ $('#tableTemplateForm').addEventListener('submit', (e) => {
   const tpl = { id: uid(), name, icon: '📋', category: $('#ttCategory').value, desc: $('#ttDesc').value.trim(),
     expiryKeys: columns.filter(c => c.type === 'date' && /انتهاء/.test(c.label)).map(c => c.key),
     columns, sample: () => ([Object.fromEntries(columns.map(c => [c.key, c.type === 'company' ? (companyNames()[0] || '') : '']))]) };
-  tableTemplates.unshift(tpl); save(LS_TABLE_TEMPLATES, tableTemplates);
-  e.target.reset(); closeTableTemplateModal(); renderTableTemplates();
-  toast(`✅ تم إنشاء نموذج «${name}»`);
-  if (confirm(`تم حفظ نموذج «${name}».\nهل تريد فتحه الآن وتعبئته؟`)) openTableTemplate(tpl.id);
+  const form = e.target;
+  try {
+    tableTemplates.unshift(tpl); save(LS_TABLE_TEMPLATES, tableTemplates);
+    renderTableTemplates();
+  } finally {
+    // Fermeture garantie, même si le stockage ou l'affichage échoue.
+    // (aucun confirm() bloquant: il peut être bloqué dans la visionneuse iframe)
+    form.reset(); closeTableTemplateModal();
+  }
+  toast(`✅ تم إنشاء نموذج «${name}» — اضغط «فتح وتعبئة» في بطاقته لاستخدامه`);
 });
 
 /* ---------- محرر الجدول ---------- */
