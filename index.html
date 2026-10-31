@@ -6,7 +6,7 @@
 <title>تطبيق السكرتارية — شركة الصداقة | الخطابات وجداول البيانات الداخلية</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=3" />
+<link rel="stylesheet" href="assets/css/style.css?v=6" />
 </head>
 <body>
 
@@ -55,12 +55,31 @@
 
     <!-- ===== View: Templates ===== -->
     <section class="view active" id="view-templates">
+      <!-- Accès rapide bien visible dès l'accueil -->
+      <div class="quick-access no-print">
+        <button class="quick-card" type="button" data-goto="editor">
+          <span class="quick-icon">✍️</span>
+          <span><strong>إنشاء خطاب جديد</strong><small>محرر الخطابات — اختر نموذجاً مثل «تسليم قيمة» واطبع</small></span>
+        </button>
+        <button class="quick-card gold" type="button" data-goto="tables">
+          <span class="quick-icon">📊</span>
+          <span><strong>جداول البيانات الداخلية</strong><small>كشف صلاحية السيارات لمجموعة الشركات والمالك + 8 نماذج أخرى</small></span>
+        </button>
+        <button class="quick-card" type="button" data-goto="companies">
+          <span class="quick-icon">🏢</span>
+          <span><strong>الشركات والشعارات</strong><small>شعار شركة واحدة أو الشركتين معاً في ترويسة الجداول</small></span>
+        </button>
+      </div>
+
       <div class="view-head no-print">
         <div>
           <h2>🗂️ نماذج الخطابات</h2>
           <p>اختر نموذجاً لاستخدامه، أو أنشئ نموذجك الخاص القابل لإعادة الاستخدام.</p>
         </div>
-        <button class="btn btn-gold btn-lg" id="btnNewTemplateMain" type="button">➕ إضافة نموذج جديد</button>
+        <div class="head-actions">
+          <button class="btn btn-outline btn-lg" id="btnImportLetter" type="button" title="Importer un fichier texte/JSON comme nouveau modèle de lettre">📥 استيراد نموذج من ملف</button>
+          <button class="btn btn-gold btn-lg" id="btnNewTemplateMain" type="button">➕ إضافة نموذج جديد</button>
+        </div>
       </div>
 
       <div class="toolbar no-print">
@@ -182,6 +201,7 @@
         </div>
         <div class="head-actions">
           <button class="btn btn-outline" id="btnCompaniesMain" type="button">🏢 الشركات والشعارات</button>
+          <button class="btn btn-outline" id="btnImportTableModel" type="button" title="Importer un fichier CSV/JSON : ses en-têtes deviennent les colonnes d'un nouveau modèle">📥 استيراد ملف كنموذج جديد</button>
           <button class="btn btn-gold" id="btnNewTableTemplate" type="button">➕ نموذج جدول جديد</button>
         </div>
       </div>
@@ -258,9 +278,24 @@
               <div class="inline"><input id="tbPrepared" placeholder="أعده…" /><input id="tbApproved" placeholder="اعتمده…" /></div>
             </label>
           </div>
+          <!-- Éditeur de colonnes : renommer / ajouter / supprimer / réordonner / type -->
+          <div class="columns-editor" id="columnsEditor">
+            <div class="card-top">
+              <h4>🧩 تعديل الأعمدة</h4>
+              <div class="head-actions">
+                <button class="btn btn-outline btn-sm" id="btnAddColumn" type="button">➕ إضافة عمود</button>
+                <button class="btn btn-gold btn-sm" id="btnSaveColumns" type="button">💾 حفظ الأعمدة في النموذج الأصلي</button>
+              </div>
+            </div>
+            <p class="hint">غيّر <strong>اسم</strong> أي عمود أو <strong>نوعه</strong>، أعد ترتيبه بالأسهم ⬆⬇، انسخه ⧉ أو احذفه 🗑 — التعديل يظهر فوراً في الجدول والمعاينة والطباعة والتصدير. «حفظ الجدول» يحفظ الأعمدة مع هذا الجدول، وزر «حفظ الأعمدة في النموذج الأصلي» يجعلها دائمة في القالب لكل الاستخدامات القادمة.</p>
+            <div id="columnsList"></div>
+          </div>
+
           <div class="alerts" id="tbAlerts"></div>
           <div class="form-actions">
             <button class="btn btn-outline" id="btnAddRow" type="button">➕ إضافة صف</button>
+            <button class="btn btn-outline" id="btnImportTableCurrent" type="button" title="Importer des données CSV/JSON dans ce tableau">📥 استيراد بيانات إلى هذا الجدول</button>
+            <button class="btn btn-outline" id="btnGotoColumns" type="button">🧩 تعديل الأعمدة وعناوينها</button>
             <button class="btn btn-primary" id="btnSaveTable" type="button">💾 حفظ الجدول</button>
             <button class="btn btn-gold" id="btnExportCsv" type="button">📥 تصدير Excel ‏(CSV)</button>
             <button class="btn btn-gold" id="btnPrintTable" type="button">🖨️ طباعة الجدول</button>
@@ -404,8 +439,11 @@
   </div>
 </div>
 
+<!-- Import de fichier (lettres / tableaux) : CSV, TSV, JSON, TXT -->
+<input type="file" id="importFileInput" hidden />
+
 <div class="toast" id="toast" hidden></div>
 
-<script src="assets/js/app.js?v=3"></script>
+<script src="assets/js/app.js?v=6"></script>
 </body>
 </html>

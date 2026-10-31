@@ -7,6 +7,9 @@ const LS_TEMPLATES = 'sadaka_templates_v1';
 const LS_LETTERS = 'sadaka_letters_v1';
 const $ = (s) => document.querySelector(s);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+/* Copie profonde avec repli JSON : structuredClone est absent de certains
+   navigateurs/WebView intégrés (visionneuse), ce qui bloquait l'ouverture des tableaux */
+const deepClone = (o) => { try { return structuredClone(o); } catch { return JSON.parse(JSON.stringify(o)); } };
 const today = () => new Date().toISOString().slice(0, 10);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -123,6 +126,7 @@ function showView(name) {
 }
 document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', () => showView(n.dataset.view)));
 document.querySelectorAll('[data-goto-editor]').forEach(b => b.addEventListener('click', () => showView('editor')));
+document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => showView(b.dataset.goto)));
 
 /* ---------- رسائل تنبيه ---------- */
 let toastTimer;
@@ -148,6 +152,8 @@ function renderTemplates() {
       <div class="excerpt">${esc((t.content || '').slice(0, 220))}…</div>
       <div class="card-actions">
         <button class="btn btn-primary btn-sm" data-use="${t.id}">✍️ استخدام النموذج</button>
+        <button class="btn btn-outline btn-sm" data-import-letter="${t.id}" title="Importer un fichier (TXT/JSON) et le prendre comme nouveau modèle de lettre">📥 استيراد ملف كنموذج</button>
+        <button class="btn btn-outline btn-sm" data-export-letter="${t.id}" title="Exporter ce modèle en fichier JSON réutilisable">📤 تصدير النموذج</button>
         <button class="btn btn-outline btn-sm" data-edit="${t.id}">✏️ تعديل</button>
         <button class="btn btn-outline btn-sm" data-dup="${t.id}">📄 نسخ</button>
         <button class="btn btn-danger btn-sm" data-del="${t.id}">🗑️ حذف</button>
@@ -165,9 +171,16 @@ $('#templateCategory').addEventListener('change', renderTemplates);
 
 $('#templatesGrid').addEventListener('click', (e) => {
   const use = e.target.closest('[data-use]'), edit = e.target.closest('[data-edit]'),
-        dup = e.target.closest('[data-dup]'), del = e.target.closest('[data-del]');
+        dup = e.target.closest('[data-dup]'), del = e.target.closest('[data-del]'),
+        imp = e.target.closest('[data-import-letter]'), exp = e.target.closest('[data-export-letter]');
   if (use) useTemplate(use.dataset.use);
   if (edit) openTemplateModal(edit.dataset.edit);
+  if (imp) startImport({ mode: 'letter-as-model' }, '.txt,.md,.json,text/plain,application/json');
+  if (exp) {
+    const src = templates.find(t => t.id === exp.dataset.exportLetter); if (!src) return;
+    downloadJSON({ kind: 'letter-template', name: src.name, category: src.category, subject: src.subject, desc: src.desc, content: src.content }, src.name + ' — نموذج خطاب');
+    toast('📤 تم تصدير النموذج — يمكن إعادة استيراده من أي بطاقة');
+  }
   if (dup) {
     const src = templates.find(t => t.id === dup.dataset.dup); if (!src) return;
     templates.unshift({ ...src, id: uid(), name: src.name + ' — نسخة' });
@@ -527,7 +540,7 @@ else { // إضافة أي نماذج افتراضية جديدة لمستخدم 
 let savedTables = load(LS_TABLES, []);
 let currentTableTemplate = null, currentTableId = null, currentRows = [];
 
-const cloneTableTemplate = (t) => ({ id: t.id, name: t.name, icon: t.icon, category: t.category, desc: t.desc, expiryKeys: [...(t.expiryKeys || [])], columns: structuredClone(t.columns || []) });
+const cloneTableTemplate = (t) => ({ id: t.id, name: t.name, icon: t.icon, category: t.category, desc: t.desc, expiryKeys: [...(t.expiryKeys || [])], columns: deepClone(t.columns || []) });
 const companyNames = () => companies.map(c => c.name);
 const isFormula = (col) => col.type === 'formula-net' || col.type === 'formula-stock';
 function cellValue(row, col) {
@@ -669,6 +682,8 @@ function renderTableTemplates() {
       <div class="excerpt">${esc((t.columns || []).map(c => c.label).join(' • '))}</div>
       <div class="card-actions">
         <button class="btn btn-primary btn-sm" data-use-table="${t.id}">📊 فتح وتعبئة</button>
+        <button class="btn btn-outline btn-sm" data-import-table="${t.id}" title="Importer un fichier de données CSV/JSON dans ce modèle, ou un modèle existant">📥 استيراد بيانات / نموذج</button>
+        <button class="btn btn-outline btn-sm" data-export-table="${t.id}" title="Exporter ce modèle (colonnes) en fichier JSON réimportable">📤 تصدير النموذج</button>
         <button class="btn btn-outline btn-sm" data-dup-table="${t.id}">📄 نسخ</button>
         <button class="btn btn-danger btn-sm" data-del-table="${t.id}">🗑️ حذف</button>
       </div>
@@ -679,8 +694,15 @@ function renderTableTemplates() {
 $('#tableTemplateSearch').addEventListener('input', renderTableTemplates);
 $('#tableTemplateCategory').addEventListener('change', renderTableTemplates);
 $('#tableTemplatesGrid').addEventListener('click', (e) => {
-  const use = e.target.closest('[data-use-table]'), dup = e.target.closest('[data-dup-table]'), del = e.target.closest('[data-del-table]');
+  const use = e.target.closest('[data-use-table]'), dup = e.target.closest('[data-dup-table]'), del = e.target.closest('[data-del-table]'),
+        imp = e.target.closest('[data-import-table]'), exp = e.target.closest('[data-export-table]');
   if (use) openTableTemplate(use.dataset.useTable);
+  if (imp) startImport({ mode: 'table-into-model', templateId: imp.dataset.importTable }, '.csv,.tsv,.txt,.json,text/csv,application/json');
+  if (exp) {
+    const src = tableTemplates.find(t => t.id === exp.dataset.exportTable); if (!src) return;
+    downloadJSON({ kind: 'table-template', ...cloneTableTemplate(src), rows: src.sample ? src.sample() : [] }, src.name + ' — نموذج جدول');
+    toast('📤 تم تصدير النموذج — يمكن إعادة استيراده من أي بطاقة');
+  }
   if (dup) {
     const src = tableTemplates.find(t => t.id === dup.dataset.dupTable); if (!src) return;
     tableTemplates.unshift({ ...cloneTableTemplate(src), id: uid(), name: src.name + ' — نسخة' });
@@ -751,11 +773,13 @@ function fillCompanySelects() {
   renderSheetHeader(); syncSheetMeta();
 }
 function openTableTemplate(id, saved = null) {
-  const tpl = tableTemplates.find(t => t.id === id) || saved?.templateSnapshot;
+  const tpl = saved?.templateSnapshot || tableTemplates.find(t => t.id === id);
   if (!tpl) { toast('⚠️ نموذج هذا الجدول محذوف — افتح جدولاً آخر'); return; }
-  currentTableTemplate = tpl;
   currentTableId = saved?.id || null;
-  currentRows = saved ? structuredClone(saved.rows || []) : structuredClone(tpl.sample ? tpl.sample() : [{}]);
+  currentRows = saved ? deepClone(saved.rows || []) : deepClone(tpl.sample ? tpl.sample() : [{}]);
+  // Copie de travail isolée : modifier les colonnes n'altère le modèle
+  // d'origine que si l'on clique « حفظ الأعمدة في النموذج الأصلي »
+  currentTableTemplate = cloneTableTemplate(tpl);
   showView('tables');
   $('#tableEditor').hidden = false;
   $('#tbEditorTitle').textContent = `${tpl.icon || '📋'} ${tpl.name}`;
@@ -768,8 +792,8 @@ function openTableTemplate(id, saved = null) {
   $('#tbCompanyMode').value = saved?.companyMode || 'group';
   if (saved?.company) $('#tbCompany').value = saved.company;
   $('#tbFilterCompany').value = '';
-  renderDataTable();
-  $('#tableEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  renderDataTable(); renderColumnsEditor();
+  if (typeof $('#tableEditor').scrollIntoView === 'function') $('#tableEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
   toast(`📊 تم فتح «${tpl.name}» — عدّل الخلايا ثم احفظ أو اطبع`);
 }
 function visibleRows() {
@@ -788,7 +812,7 @@ function visibleRows() {
 function renderDataTable() {
   const tpl = currentTableTemplate; if (!tpl) return;
   const hasStatus = !!tpl.expiryKeys?.length;
-  $('#dataHead').innerHTML = '<tr><th>#</th>' + tpl.columns.map(c => `<th>${esc(c.label)}</th>`).join('') +
+  $('#dataHead').innerHTML = '<tr><th>#</th>' + tpl.columns.map((c, i) => `<th>${esc(c.label)}<button class="th-edit" type="button" data-edit-col="${i}" title="تعديل عنوان هذا العمود ونوعه">✎</button></th>`).join('') +
     (hasStatus ? '<th>حالة الصلاحية</th>' : '') + '<th class="no-print"></th></tr>';
   const rows = visibleRows();
   $('#dataBody').innerHTML = rows.map(({ row, idx }) => {
@@ -804,6 +828,104 @@ function renderDataTable() {
   }).join('') || `<tr><td colspan="${tpl.columns.length + 3}" style="text-align:center;padding:22px">لا توجد صفوف مطابقة — اضغط «إضافة صف» أو غيّر التصفية</td></tr>`;
   syncSheetMeta(); renderAlerts();
 }
+/* ---------- تعديل الأعمدة : nom, type, ordre, ajout, suppression ---------- */
+const COLUMN_TYPES = [
+  ['text', 'نص'], ['date', 'تاريخ (انتهاء = صلاحية)'], ['number', 'رقم / مبلغ'],
+  ['company', 'الشركة / المالك'], ['select', 'قائمة منسدلة'],
+  ['formula-net', 'محسوب: الصافي (أساسي+بدلات−خصومات)'], ['formula-stock', 'محسوب: الرصيد (أول+وارد−منصرف)']
+];
+function syncExpiryKeys() {
+  if (!currentTableTemplate) return;
+  currentTableTemplate.expiryKeys = currentTableTemplate.columns
+    .filter(c => c.type === 'date' && /انتهاء|صلاحية/.test(c.label)).map(c => c.key);
+}
+function refreshTableAndColumns(focusIdx = null) {
+  renderDataTable(); renderColumnsEditor();
+  if (focusIdx !== null) document.querySelector(`[data-col-label][data-idx="${focusIdx}"]`)?.focus();
+}
+function renderColumnsEditor() {
+  const box = $('#columnsList'); if (!box || !currentTableTemplate) return;
+  box.innerHTML = currentTableTemplate.columns.map((c, i) => `
+    <div class="col-row">
+      <span class="col-num">${i + 1}</span>
+      <input data-col-label data-idx="${i}" value="${esc(c.label)}" placeholder="اسم العمود" aria-label="اسم العمود ${i + 1}" />
+      <select data-col-type data-idx="${i}" aria-label="نوع العمود ${i + 1}">
+        ${COLUMN_TYPES.map(([v, l]) => `<option value="${v}" ${c.type === v ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
+      <input data-col-options data-idx="${i}" value="${esc((c.options || []).join('، '))}" placeholder="خيارات القائمة المنسدلة (افصل بفاصلة) — تُستخدم مع نوع «قائمة»" />
+      <span class="col-btns">
+        <button class="col-btn" type="button" data-col-up="${i}" title="نقل لأعلى">⬆</button>
+        <button class="col-btn" type="button" data-col-down="${i}" title="نقل لأسفل">⬇</button>
+        <button class="col-btn" type="button" data-col-dup="${i}" title="نسخ العمود">⧉</button>
+        <button class="col-btn danger" type="button" data-col-del="${i}" title="حذف العمود">🗑</button>
+      </span>
+    </div>`).join('');
+}
+// Renommer en direct sans perdre le focus : on ne met à jour que l'en-tête
+$('#columnsList')?.addEventListener('input', (e) => {
+  const labelInp = e.target.closest('[data-col-label]');
+  const optInp = e.target.closest('[data-col-options]');
+  if (labelInp) {
+    const i = Number(labelInp.dataset.idx), col = currentTableTemplate?.columns[i]; if (!col) return;
+    col.label = labelInp.value; syncExpiryKeys();
+    const th = document.querySelector(`#dataHead th:nth-child(${i + 2})`); if (th) th.textContent = labelInp.value;
+  }
+  if (optInp) {
+    const i = Number(optInp.dataset.idx), col = currentTableTemplate?.columns[i]; if (!col) return;
+    col.options = optInp.value.split(/،|,/).map(s => s.trim()).filter(Boolean);
+  }
+});
+$('#columnsList')?.addEventListener('change', (e) => {
+  const typeSel = e.target.closest('[data-col-type]'); if (!typeSel || !currentTableTemplate) return;
+  const i = Number(typeSel.dataset.idx), col = currentTableTemplate.columns[i]; if (!col) return;
+  col.type = typeSel.value;
+  if (col.type === 'company') currentRows.forEach(r => { if (!companyNames().includes(r[col.key])) r[col.key] = companyNames()[0] || ''; });
+  if (col.type === 'select' && !col.options?.length) col.options = ['الأول', 'الثاني'];
+  syncExpiryKeys(); refreshTableAndColumns();
+  toast(`🔧 أصبح عمود «${col.label}» من نوع: ${typeSel.selectedOptions[0].textContent}`);
+});
+$('#columnsList')?.addEventListener('click', (e) => {
+  if (!currentTableTemplate) return;
+  const cols = currentTableTemplate.columns;
+  const up = e.target.closest('[data-col-up]'), down = e.target.closest('[data-col-down]'),
+        dup = e.target.closest('[data-col-dup]'), del = e.target.closest('[data-col-del]');
+  const swap = (a, b) => { [cols[a], cols[b]] = [cols[b], cols[a]]; refreshTableAndColumns(); };
+  if (up && Number(up.dataset.colUp) > 0) swap(Number(up.dataset.colUp), Number(up.dataset.colUp) - 1);
+  if (down && Number(down.dataset.colDown) < cols.length - 1) swap(Number(down.dataset.colDown), Number(down.dataset.colDown) + 1);
+  if (dup) {
+    const i = Number(dup.dataset.colDup), src = cols[i];
+    const copy = { ...deepClone(src), key: 'col_' + uid(), label: src.label + ' — نسخة' };
+    cols.splice(i + 1, 0, copy);
+    currentRows.forEach(r => r[copy.key] = r[src.key] ?? '');
+    syncExpiryKeys(); refreshTableAndColumns(i + 1); toast(`⧉ تم نسخ عمود «${src.label}»`);
+  }
+  if (del) {
+    const i = Number(del.dataset.colDel), col = cols[i];
+    if (cols.length <= 1) { toast('⚠️ يجب إبقاء عمود واحد على الأقل'); return; }
+    if (!confirm(`حذف عمود «${col.label}» وكل قيمه من جميع الصفوف؟`)) return;
+    cols.splice(i, 1); currentRows.forEach(r => delete r[col.key]);
+    syncExpiryKeys(); refreshTableAndColumns(); toast(`🗑️ تم حذف عمود «${col.label}»`);
+  }
+});
+$('#btnAddColumn')?.addEventListener('click', () => {
+  if (!currentTableTemplate) return;
+  const col = { key: 'col_' + uid(), label: 'عمود جديد', type: 'text', options: [] };
+  currentTableTemplate.columns.push(col);
+  currentRows.forEach(r => r[col.key] = '');
+  refreshTableAndColumns(currentTableTemplate.columns.length - 1);
+  toast('➕ تمت إضافة عمود جديد — غيّر اسمه ونوعه من قائمة الأعمدة');
+});
+$('#btnSaveColumns')?.addEventListener('click', () => {
+  if (!currentTableTemplate) return;
+  syncExpiryKeys();
+  const snapshot = cloneTableTemplate(currentTableTemplate);
+  const idx = tableTemplates.findIndex(t => t.id === currentTableTemplate.id);
+  if (idx >= 0) tableTemplates[idx] = { ...tableTemplates[idx], columns: snapshot.columns, expiryKeys: snapshot.expiryKeys };
+  else tableTemplates.unshift({ ...snapshot }); // modèle d'origine supprimé : on le recrée
+  save(LS_TABLE_TEMPLATES, tableTemplates); renderTableTemplates();
+  toast(`💾 تم حفظ أعمدة «${currentTableTemplate.name}» في النموذج الأصلي — ستظهر في كل استخدام قادم`);
+});
+
 function renderAlerts() {
   const tpl = currentTableTemplate; if (!tpl) return;
   let html = `<span class="alert-pill info">📋 إجمالي السجلات: ${currentRows.length}</span>`;
@@ -848,6 +970,17 @@ $('#dataBody')?.addEventListener('click', (e) => {
   if (!confirm('حذف هذا الصف من الجدول؟')) return;
   currentRows.splice(Number(del.dataset.delRow), 1); renderDataTable(); toast('🗑️ تم حذف الصف');
 });
+// ✎ dans l'en-tête : aller directement à l'éditeur du titre/type de cette colonne
+$('#dataHead')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-edit-col]'); if (!btn) return;
+  const i = Number(btn.dataset.editCol);
+  const panel = $('#columnsEditor');
+  if (panel && typeof panel.scrollIntoView === 'function') panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => {
+    const inp = document.querySelector(`[data-col-label][data-idx="${i}"]`);
+    if (inp) { inp.focus(); inp.select(); }
+  }, 350);
+});
 $('#btnAddRow').addEventListener('click', () => {
   if (!currentTableTemplate) return;
   const row = Object.fromEntries(currentTableTemplate.columns.map(c => [c.key, c.type === 'company' ? ($('#tbFilterCompany').value || companyNames()[0] || '') : '']));
@@ -868,7 +1001,7 @@ $('#btnSaveTable').addEventListener('click', () => {
     title: $('#tbTitle').value.trim() || currentTableTemplate.name, period: $('#tbPeriod').value.trim(),
     date: $('#tbDate').value || today(), companyMode: $('#tbCompanyMode').value, company: $('#tbCompany').value,
     prepared: $('#tbPrepared').value.trim(), approved: $('#tbApproved').value.trim(),
-    rows: structuredClone(currentRows)
+    rows: deepClone(currentRows)
   };
   if (currentTableId) savedTables = savedTables.map(t => t.id === currentTableId ? { ...t, ...data } : t);
   else { currentTableId = uid(); savedTables.unshift({ id: currentTableId, ...data }); }
@@ -913,6 +1046,202 @@ $('#btnExportCsv').addEventListener('click', () => {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = ($('#tbTitle').value.trim() || tpl.name) + '.csv'; a.click();
   URL.revokeObjectURL(a.href); toast('📥 تم تصدير الجدول — يفتح مباشرة في Excel');
+});
+
+/* =====================================================
+   استيراد / تصدير الملفات — ملف بيانات أو نموذج موجود يُؤخذ كنموذج
+   Formats supportés : CSV / TSV (Excel : enregistrer sous CSV), JSON, TXT
+===================================================== */
+let importContext = null;
+function startImport(ctx, accept) {
+  importContext = ctx;
+  const inp = $('#importFileInput');
+  inp.accept = accept; inp.value = ''; inp.click();
+}
+function downloadJSON(obj, baseName) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = String(baseName || 'modele').replace(/[\\/:*?"<>|]/g, ' ').trim() + '.json';
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 800);
+}
+function uniqueModelName(base, existingNames) {
+  let name = String(base || 'نموذج مستورد').trim() || 'نموذج مستورد';
+  if (!existingNames.includes(name)) return name;
+  name += ' — مستورد';
+  let n = 2; const root = name;
+  while (existingNames.includes(name)) name = `${root} (${n++})`;
+  return name;
+}
+const normalizeHeader = (s) => String(s ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+function inferColumnType(label, values = []) {
+  const vals = values.filter(v => String(v ?? '').trim() !== '');
+  if (label === 'الشركة' || /شركة|مالك/.test(label)) return 'company';
+  if (/تاريخ|انتهاء|بداية|تعيين|شراء|استلام/.test(label)) return 'date';
+  if (vals.length && vals.every(v => /^-?[\d.,\s]+$/.test(String(v)))) return 'number';
+  if (/حالة|نوع|تصنيف|فئة/.test(label) && new Set(vals).size > 0 && new Set(vals).size <= 8) return 'select';
+  if (/مبلغ|راتب|تكلفة|سعر|كمية|عدد|أساسي|بدلات|خصومات|عداد|رصيد/.test(label)) return 'number';
+  return 'text';
+}
+function parseDelimitedText(text) {
+  const clean = String(text).replace(/^\uFEFF/, '');
+  const firstLine = clean.split(/\r?\n/).find(l => l.trim()) || '';
+  const delim = [';', '\t', ','].sort((a, b) => firstLine.split(b).length - firstLine.split(a).length)[0] || ',';
+  const rows = []; let row = [], cell = '', quoted = false;
+  for (let i = 0; i < clean.length; i++) {
+    const ch = clean[i];
+    if (quoted) {
+      if (ch === '"' && clean[i + 1] === '"') { cell += '"'; i++; }
+      else if (ch === '"') quoted = false; else cell += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === delim) { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && clean[i + 1] === '\n') i++;
+      row.push(cell); cell = ''; rows.push(row); row = [];
+    } else cell += ch;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(c => String(c).trim() !== ''));
+}
+function arraysToObjects(rows) {
+  if (!rows.length) return { headers: [], objects: [] };
+  const seen = {};
+  const headers = rows[0].map((h, i) => {
+    let label = String(h ?? '').trim() || `عمود ${i + 1}`;
+    if (seen[normalizeHeader(label)]) label += ` (${++seen[normalizeHeader(label)]})`; else seen[normalizeHeader(label)] = 1;
+    return label;
+  });
+  const objects = rows.slice(1).map(r => Object.fromEntries(headers.map((h, i) => [h, r[i] ?? ''])));
+  return { headers, objects };
+}
+function jsonToTableData(data) {
+  if (Array.isArray(data)) {
+    if (!data.length) return { headers: [], objects: [] };
+    if (Array.isArray(data[0])) return arraysToObjects(data);
+    const headers = [...new Set(data.flatMap(o => Object.keys(o || {})))];
+    return { headers, objects: data };
+  }
+  if (data && typeof data === 'object') {
+    for (const key of ['rows', 'data', 'items', 'records']) if (Array.isArray(data[key])) return jsonToTableData(data[key]);
+    return { headers: Object.keys(data), objects: [data] };
+  }
+  return { headers: [], objects: [] };
+}
+async function readFileText(file) {
+  if (typeof file.text === 'function') return file.text();
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsText(file); });
+}
+function importedTemplateRows(columns, rawRows) {
+  return (rawRows || []).map(r => Object.fromEntries(columns.map(c => [c.key, r?.[c.key] ?? r?.[c.label] ?? ''])));
+}
+function handleImportedText(text, filename) {
+  const ctx = importContext || { mode: 'table-as-model' };
+  const baseName = filename.replace(/\.[^.]+$/, '');
+  if (/\.xlsx$/i.test(filename)) throw new Error('صيغة Excel ‏(.xlsx) غير مقروءة مباشرة — احفظ الملف بصيغة CSV ثم أعد الاستيراد');
+
+  if (ctx.mode === 'letter-as-model') {
+    let data = null;
+    if (/\.json$/i.test(filename)) { try { data = JSON.parse(text); } catch { /* يُعامل كنص */ } }
+    const content = String(data?.content ?? data?.text ?? data?.body ?? (data ? '' : text)).trim();
+    if (!content) throw new Error('لم يتم العثور على نص خطاب داخل الملف');
+    const created = {
+      id: uid(), name: uniqueModelName(data?.name || baseName, templates.map(t => t.name)),
+      category: ['مالي', 'إداري', 'موارد بشرية', 'عام'].includes(data?.category) ? data.category : 'عام',
+      subject: String(data?.subject || ''), desc: 'نموذج مستورد من ملف: ' + filename, content
+    };
+    templates.unshift(created); save(LS_TEMPLATES, templates); renderTemplates();
+    toast(`📥 تم استيراد «${created.name}» كنموذج خطاب جديد`);
+    useTemplate(created.id);
+    return;
+  }
+
+  // --- Tableaux ---
+  let json = null;
+  if (/\.json$/i.test(filename) || /^[\s]*[[{]/.test(text)) { try { json = JSON.parse(text); } catch { json = null; } }
+
+  // Fichier = modèle de tableau exporté (colonnes + éventuelles lignes)
+  if (json && json.kind === 'table-template' && Array.isArray(json.columns)) {
+    const columns = json.columns.filter(c => c?.label).map((c, i) => ({
+      key: /^[A-Za-z0-9_]+$/.test(c.key || '') ? c.key : 'col' + (i + 1), label: String(c.label),
+      type: COLUMN_TYPES.some(([v]) => v === c.type) ? c.type : 'text', options: Array.isArray(c.options) ? c.options : []
+    }));
+    if (!columns.length) throw new Error('النموذج المستورد بدون أعمدة');
+    const created = {
+      id: uid(), name: uniqueModelName(json.name || baseName, tableTemplates.map(t => t.name)),
+      icon: json.icon || '📥', category: json.category || 'إداري', desc: 'نموذج مستورد من ملف: ' + filename,
+      expiryKeys: columns.filter(c => c.type === 'date' && /انتهاء|صلاحية/.test(c.label)).map(c => c.key),
+      columns, sample: () => [Object.fromEntries(columns.map(c => [c.key, c.type === 'company' ? (companyNames()[0] || '') : '']))]
+    };
+    tableTemplates.unshift(created); save(LS_TABLE_TEMPLATES, tableTemplates); renderTableTemplates();
+    toast(`📥 تم استيراد النموذج «${created.name}» (${columns.length} عمود)`);
+    openTableTemplate(created.id, { rows: importedTemplateRows(columns, json.rows), title: created.name });
+    return;
+  }
+
+  const { headers, objects } = json !== null ? jsonToTableData(json) : arraysToObjects(parseDelimitedText(text));
+  if (!headers.length || !objects.length) throw new Error('لم يتم العثور على بيانات (عناوين + صفوف) داخل الملف');
+
+  if (ctx.mode === 'table-as-model') {
+    const columns = headers.map((label, i) => ({
+      key: 'col' + (i + 1), label, type: inferColumnType(label, objects.map(o => o[label])),
+      options: inferColumnType(label, objects.map(o => o[label])) === 'select' ? [...new Set(objects.map(o => String(o[label] ?? '')).filter(Boolean))] : []
+    }));
+    const created = {
+      id: uid(), name: uniqueModelName(baseName, tableTemplates.map(t => t.name)),
+      icon: '📥', category: 'إداري', desc: 'نموذج مُنشأ من ملف مستورد: ' + filename,
+      expiryKeys: columns.filter(c => c.type === 'date' && /انتهاء|صلاحية/.test(c.label)).map(c => c.key),
+      columns, sample: () => [Object.fromEntries(columns.map(c => [c.key, '']))]
+    };
+    tableTemplates.unshift(created); save(LS_TABLE_TEMPLATES, tableTemplates); renderTableTemplates();
+    const rows = objects.map(o => Object.fromEntries(columns.map((c, i) => [c.key, o[headers[i]] ?? ''])));
+    toast(`📥 تم إنشاء نموذج «${created.name}» من الملف (${columns.length} عمود، ${rows.length} صف)`);
+    openTableTemplate(created.id, { rows, title: created.name });
+    return;
+  }
+
+  // Importer des données dans un modèle existant (ou le tableau ouvert)
+  const base = ctx.mode === 'table-into-current' ? currentTableTemplate : tableTemplates.find(t => t.id === ctx.templateId);
+  if (!base) throw new Error('النموذج المستهدف غير موجود — استخدم «استيراد ملف كنموذج جديد»');
+  const columns = deepClone(base.columns || []);
+  headers.forEach((label) => {
+    if (!columns.some(c => normalizeHeader(c.label) === normalizeHeader(label))) {
+      columns.push({ key: 'col_' + uid(), label, type: inferColumnType(label, objects.map(o => o[label])), options: [] });
+    }
+  });
+  const rows = objects.map(o => {
+    const vals = Object.values(o);
+    return Object.fromEntries(columns.map((c, ci) => {
+      const h = headers.find(x => normalizeHeader(x) === normalizeHeader(c.label));
+      return [c.key, h !== undefined ? (o[h] ?? '') : (vals[ci] ?? '')];
+    }));
+  });
+  const snapshot = { ...cloneTableTemplate(base), columns,
+    expiryKeys: columns.filter(c => c.type === 'date' && /انتهاء|صلاحية/.test(c.label)).map(c => c.key) };
+  toast(`📥 تم استيراد ${rows.length} صف إلى «${base.name}» — راجع البيانات ثم «حفظ الجدول»`);
+  openTableTemplate(base.id, { rows, title: base.name, templateSnapshot: snapshot });
+}
+$('#importFileInput')?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  const ctxSnapshot = importContext; importContext = null;
+  if (!file) return;
+  try {
+    importContext = ctxSnapshot;
+    handleImportedText(await readFileText(file), file.name);
+  } catch (err) {
+    console.error('Import échoué:', err);
+    toast('⚠️ فشل الاستيراد: ' + (err?.message || 'ملف غير صالح'));
+  } finally { importContext = null; e.target.value = ''; }
+});
+$('#btnImportLetter')?.addEventListener('click', () => startImport({ mode: 'letter-as-model' }, '.txt,.md,.json,text/plain,application/json'));
+$('#btnImportTableModel')?.addEventListener('click', () => startImport({ mode: 'table-as-model' }, '.csv,.tsv,.txt,.json,text/csv,application/json'));
+$('#btnImportTableCurrent')?.addEventListener('click', () => {
+  if (!currentTableTemplate) { toast('⚠️ افتح نموذج جدول أولاً'); return; }
+  startImport({ mode: 'table-into-current' }, '.csv,.tsv,.txt,.json,text/csv,application/json');
+});
+$('#btnGotoColumns')?.addEventListener('click', () => {
+  const panel = $('#columnsEditor');
+  if (panel && typeof panel.scrollIntoView === 'function') panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => document.querySelector('[data-col-label]')?.focus(), 350);
 });
 
 /* ---------- بدء التشغيل ---------- */
