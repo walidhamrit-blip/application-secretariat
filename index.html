@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>تطبيق السكرتارية — شركة الصداقة | الخطابات وجداول البيانات الداخلية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css?v=3" />
+</head>
+<body>
+
+<!-- ===== Top bar ===== -->
+<header class="topbar no-print">
+  <div class="brand">
+    <div class="logo">✉️</div>
+    <div>
+      <h1>شركة الصداقة</h1>
+      <p>تطبيق السكرتارية — إدارة الخطابات والنماذج</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <button class="btn btn-gold" id="btnNewTemplateTop" type="button">➕ إضافة نموذج جديد</button>
+    <button class="btn btn-light" id="btnNewTableTop" type="button">📊 جداول البيانات</button>
+    <button class="btn btn-light" id="btnNewLetterTop" type="button">📝 خطاب جديد</button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ===== Sidebar ===== -->
+  <aside class="sidebar no-print">
+    <nav class="nav">
+      <button class="nav-item active" data-view="templates" type="button">🗂️ <span>نماذج الخطابات</span></button>
+      <button class="nav-item" data-view="editor" type="button">✍️ <span>محرر الخطاب</span></button>
+      <button class="nav-item" data-view="letters" type="button">📁 <span>الخطابات المحفوظة</span> <b class="badge" id="lettersCount">0</b></button>
+      <button class="nav-item" data-view="tables" type="button">📊 <span>جداول البيانات الداخلية</span> <b class="badge" id="tablesCount">0</b></button>
+      <button class="nav-item" data-view="companies" type="button">🏢 <span>الشركات والشعارات</span></button>
+    </nav>
+
+    <button class="btn btn-primary btn-block" id="btnVehiclesSide" type="button">🚗 كشف صلاحية السيارات</button>
+
+    <button class="btn btn-gold btn-block" id="btnNewTemplateSide" type="button">➕ إضافة نموذج خطاب جديد</button>
+    <p class="side-hint">أنشئ نموذجاً مرة واحدة — مثل <strong>«تسليم قيمة»</strong> — ثم أعد استخدامه في أي خطاب جديد بنقرة واحدة.</p>
+
+    <div class="stats">
+      <div class="stat"><strong id="statTemplates">0</strong><span>نموذج خطاب</span></div>
+      <div class="stat"><strong id="statLetters">0</strong><span>خطاب محفوظ</span></div>
+      <div class="stat"><strong id="statTables">0</strong><span>جدول محفوظ</span></div>
+      <div class="stat"><strong id="statCompanies">0</strong><span>شركة / جهة</span></div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main class="main">
+
+    <!-- ===== View: Templates ===== -->
+    <section class="view active" id="view-templates">
+      <div class="view-head no-print">
+        <div>
+          <h2>🗂️ نماذج الخطابات</h2>
+          <p>اختر نموذجاً لاستخدامه، أو أنشئ نموذجك الخاص القابل لإعادة الاستخدام.</p>
+        </div>
+        <button class="btn btn-gold btn-lg" id="btnNewTemplateMain" type="button">➕ إضافة نموذج جديد</button>
+      </div>
+
+      <div class="toolbar no-print">
+        <input type="search" id="templateSearch" placeholder="🔍 ابحث باسم النموذج… مثال: تسليم قيمة" />
+        <select id="templateCategory">
+          <option value="">كل التصنيفات</option>
+          <option value="مالي">مالي</option>
+          <option value="إداري">إداري</option>
+          <option value="موارد بشرية">موارد بشرية</option>
+          <option value="عام">عام</option>
+        </select>
+      </div>
+
+      <div class="grid" id="templatesGrid"></div>
+
+      <div class="empty" id="templatesEmpty" hidden>
+        <div class="empty-icon">🗂️</div>
+        <h3>لا توجد نماذج مطابقة</h3>
+        <p>أنشئ أول نموذج لك الآن — مثال: نموذج «تسليم قيمة» — واحفظه لإعادة استخدامه لاحقاً.</p>
+        <button class="btn btn-gold btn-lg" id="btnNewTemplateEmpty" type="button">➕ إضافة نموذج جديد</button>
+      </div>
+    </section>
+
+    <!-- ===== View: Editor ===== -->
+    <section class="view" id="view-editor">
+      <div class="view-head no-print">
+        <div>
+          <h2>✍️ محرر الخطاب</h2>
+          <p>اختر نموذجاً، املأ الحقول المتغيرة، ثم احفظ أو اطبع الخطاب.</p>
+        </div>
+        <div class="head-actions">
+          <button class="btn btn-outline" id="btnSaveAsTemplate" type="button">💾 حفظ كنموذج جديد</button>
+          <button class="btn btn-gold" id="btnPrint" type="button">🖨️ طباعة / PDF</button>
+        </div>
+      </div>
+
+      <div class="editor-layout">
+        <form class="panel no-print" id="letterForm">
+          <label>نموذج الخطاب
+            <div class="inline">
+              <select id="fTemplate"></select>
+              <button class="btn btn-gold" id="btnNewTemplateEditor" type="button" title="إضافة نموذج جديد">➕ نموذج جديد</button>
+            </div>
+          </label>
+
+          <div class="row2">
+            <label>رقم المرجع <input id="fRef" placeholder="مثال: ص/2026/001" /></label>
+            <label>التاريخ <input id="fDate" type="date" /></label>
+          </div>
+          <label>الجهة / المستلم <input id="fRecipient" placeholder="مثال: السيد مدير المالية" /></label>
+          <label>الموضوع <input id="fSubject" placeholder="موضوع الخطاب" /></label>
+
+          <div id="varsBox" class="vars-box" hidden>
+            <h4>🔤 الحقول المتغيرة في النموذج</h4>
+            <p class="hint">املأ هذه الحقول وستُستبدل تلقائياً داخل نص الخطاب.</p>
+            <div id="varsFields"></div>
+          </div>
+
+          <label>نص الخطاب
+            <textarea id="fContent" rows="13" placeholder="اختر نموذجاً من الأعلى أو اكتب نص الخطاب هنا… يمكنك استخدام متغيرات مثل {{اسم_المستلم}} و {{المبلغ}} و {{التاريخ}}"></textarea>
+          </label>
+          <p class="hint">💡 المتغيرات بين قوسين <code>{{...}}</code> تتحول تلقائياً إلى حقول تعبئة عند استخدام النموذج.</p>
+
+          <div class="form-actions">
+            <button class="btn btn-primary" id="btnSaveLetter" type="submit">💾 حفظ الخطاب</button>
+            <button class="btn btn-outline" id="btnClear" type="button">🧹 خطاب فارغ</button>
+          </div>
+        </form>
+
+        <div class="preview-wrap">
+          <p class="preview-label no-print">👁️ معاينة الخطاب (A4) — جاهزة للطباعة</p>
+          <article class="sheet" id="previewSheet">
+            <header class="sheet-head">
+              <div><strong>شركة الصداقة</strong><span>الإدارة العامة — السكرتارية</span></div>
+              <div class="sheet-head-left">✉️</div>
+            </header>
+            <div class="sheet-meta">
+              <span>الرقم: <b id="pRef">—</b></span>
+              <span>التاريخ: <b id="pDate">—</b></span>
+            </div>
+            <p class="sheet-to">إلى: <b id="pRecipient">—</b></p>
+            <h3 class="sheet-subject" id="pSubject">موضوع الخطاب</h3>
+            <div class="sheet-body" id="pBody">اختر نموذجاً لبدء كتابة خطابك…</div>
+            <footer class="sheet-sign">
+              <div><span>الاسم والتوقيع</span><strong id="pSign">—</strong></div>
+              <div class="seal">ختم الشركة</div>
+            </footer>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== View: Saved letters ===== -->
+    <section class="view" id="view-letters">
+      <div class="view-head no-print">
+        <div>
+          <h2>📁 الخطابات المحفوظة</h2>
+          <p>كل الخطابات التي حفظتها — يمكنك فتحها وتعديلها أو طباعتها من جديد.</p>
+        </div>
+        <button class="btn btn-primary" id="btnNewLetter2" type="button">📝 خطاب جديد</button>
+      </div>
+      <div class="toolbar no-print">
+        <input type="search" id="letterSearch" placeholder="🔍 ابحث برقم المرجع أو الموضوع أو المستلم…" />
+      </div>
+      <div id="lettersList" class="letters-list"></div>
+      <div class="empty" id="lettersEmpty" hidden>
+        <div class="empty-icon">📁</div>
+        <h3>لا توجد خطابات محفوظة بعد</h3>
+        <p>افتح محرر الخطاب، اختر نموذجاً مثل «تسليم قيمة»، ثم اضغط «حفظ الخطاب».</p>
+        <button class="btn btn-gold btn-lg" data-goto-editor type="button">✍️ إنشاء خطاب جديد</button>
+      </div>
+    </section>
+    <!-- ===== View: Internal data tables ===== -->
+    <section class="view" id="view-tables">
+      <div class="view-head no-print">
+        <div>
+          <h2>📊 جداول البيانات الداخلية</h2>
+          <p>نماذج جداول جاهزة لمجموعة الشركات — بشعار شركة واحدة أو الشركتين معاً — مع حفظ وطباعة أفقي A4 وتصدير Excel (CSV).</p>
+        </div>
+        <div class="head-actions">
+          <button class="btn btn-outline" id="btnCompaniesMain" type="button">🏢 الشركات والشعارات</button>
+          <button class="btn btn-gold" id="btnNewTableTemplate" type="button">➕ نموذج جدول جديد</button>
+        </div>
+      </div>
+
+      <div class="companies-strip no-print" id="companiesStrip"></div>
+
+      <div class="no-print">
+        <h3 class="section-title">🗂️ نماذج الجداول الجاهزة <small>اختر نموذجاً لفتحه وتعبئته — أولها كشف صلاحية السيارات المطلوب</small></h3>
+        <div class="toolbar">
+          <input type="search" id="tableTemplateSearch" placeholder="🔍 ابحث عن نموذج جدول… مثال: صلاحية السيارات، رواتب، مخزون" />
+          <select id="tableTemplateCategory">
+            <option value="">كل الأقسام</option>
+            <option value="السيارات والأسطول">السيارات والأسطول</option>
+            <option value="موارد بشرية">موارد بشرية</option>
+            <option value="مالية">مالية</option>
+            <option value="إداري">إداري</option>
+            <option value="مخزون وأصول">مخزون وأصول</option>
+          </select>
+        </div>
+        <div class="grid" id="tableTemplatesGrid"></div>
+        <div class="empty" id="tableTemplatesEmpty" hidden>
+          <div class="empty-icon">📊</div>
+          <h3>لا توجد نماذج مطابقة</h3>
+          <p>أنشئ نموذج جدول خاصاً بك بالأعمدة التي تحتاجها.</p>
+          <button class="btn btn-gold btn-lg" id="btnNewTableTemplateEmpty" type="button">➕ نموذج جدول جديد</button>
+        </div>
+
+        <h3 class="section-title">💾 الجداول المحفوظة</h3>
+        <div id="savedTablesList" class="letters-list"></div>
+        <div class="empty" id="savedTablesEmpty" hidden>
+          <div class="empty-icon">📋</div>
+          <h3>لا توجد جداول محفوظة بعد</h3>
+          <p>افتح «كشف صلاحية السيارات» كمثال، عدّل بيانات سيارات الشركات والمالك، ثم اضغط «حفظ الجدول».</p>
+        </div>
+      </div>
+
+      <!-- Table editor -->
+      <div id="tableEditor" hidden>
+        <div class="panel no-print table-controls">
+          <div class="card-top">
+            <h3 id="tbEditorTitle">📋 تحرير الجدول</h3>
+            <button class="icon-btn" id="btnCloseTableEditor" type="button" title="إغلاق المحرر">✕</button>
+          </div>
+          <div class="row3">
+            <label>عنوان الجدول <input id="tbTitle" placeholder="مثال: كشف صلاحية السيارات — أكتوبر 2026" /></label>
+            <label>الفترة / الشهر <input id="tbPeriod" placeholder="مثال: أكتوبر 2026" /></label>
+            <label>تاريخ الإعداد <input id="tbDate" type="date" /></label>
+          </div>
+          <div class="row3">
+            <label>الترويسة والشعار
+              <select id="tbCompanyMode">
+                <option value="group">الشركتين معاً — مجموعة الشركات</option>
+                <option value="single">شركة واحدة فقط</option>
+              </select>
+            </label>
+            <label>الشركة (عند اختيار شركة واحدة)
+              <select id="tbCompany"></select>
+            </label>
+            <label>تصفية حسب الشركة / المالك
+              <select id="tbFilterCompany"><option value="">كل الشركات والمالك</option></select>
+            </label>
+          </div>
+          <div class="row3">
+            <label>بحث داخل الجدول <input id="tbSearch" type="search" placeholder="ابحث برقم اللوحة، اسم السائق، نوع السيارة…" /></label>
+            <label>تصفية حسب الحالة
+              <select id="tbFilterStatus">
+                <option value="">كل الحالات</option>
+                <option value="سارية">🟢 سارية</option>
+                <option value="تنتهي قريباً">🟡 تنتهي قريباً (30 يوماً)</option>
+                <option value="منتهية">🔴 منتهية — تحتاج تجديد</option>
+              </select>
+            </label>
+            <label>إعداد / اعتماد
+              <div class="inline"><input id="tbPrepared" placeholder="أعده…" /><input id="tbApproved" placeholder="اعتمده…" /></div>
+            </label>
+          </div>
+          <div class="alerts" id="tbAlerts"></div>
+          <div class="form-actions">
+            <button class="btn btn-outline" id="btnAddRow" type="button">➕ إضافة صف</button>
+            <button class="btn btn-primary" id="btnSaveTable" type="button">💾 حفظ الجدول</button>
+            <button class="btn btn-gold" id="btnExportCsv" type="button">📥 تصدير Excel ‏(CSV)</button>
+            <button class="btn btn-gold" id="btnPrintTable" type="button">🖨️ طباعة الجدول</button>
+          </div>
+          <p class="hint">💡 عدّل أي خلية مباشرة داخل الجدول. في كشف السيارات تُحسب الحالة تلقائياً من أقرب تاريخ انتهاء (الترخيص / التأمين / الفحص): 🔴 منتهية، 🟡 تنتهي خلال 30 يوماً، 🟢 سارية.</p>
+        </div>
+
+        <p class="preview-label no-print">👁️ معاينة الجدول الرسمي — طباعة أفقية A4 بالشعارات</p>
+        <article class="sheet table-sheet" id="tableSheet">
+          <header class="dual-head" id="tbSheetHeader"></header>
+          <h3 class="sheet-title" id="tbSheetTitle">كشف صلاحية السيارات</h3>
+          <div class="sheet-meta">
+            <span>الفترة: <b id="tbSheetPeriod">—</b></span>
+            <span>التاريخ: <b id="tbSheetDate">—</b></span>
+            <span>عدد السجلات: <b id="tbSheetCount">0</b></span>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table" id="dataTable">
+              <thead id="dataHead"></thead>
+              <tbody id="dataBody"></tbody>
+            </table>
+          </div>
+          <div class="sheet-stats" id="tbSheetStats"></div>
+          <footer class="sheet-sign table-sign">
+            <div><span>إعداد</span><strong id="tbSheetPrepared">—</strong></div>
+            <div><span>اعتماد</span><strong id="tbSheetApproved">—</strong></div>
+            <div class="seal">ختم الشركة</div>
+          </footer>
+          <p class="sheet-foot">مستند داخلي — مجموعة الشركات • يُراجع ويُحدّث دورياً من السكرتارية</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===== View: Companies & logos ===== -->
+    <section class="view" id="view-companies">
+      <div class="view-head no-print">
+        <div>
+          <h2>🏢 الشركات والشعارات</h2>
+          <p>أضف شركات المجموعة وارفع شعار كل شركة — ستظهر الشعارات في ترويسة الجداول (شركة واحدة أو الشركتين معاً)، ويمكنك إضافة «المالك — سيارة خاصة» كجهة مستقلة.</p>
+        </div>
+      </div>
+      <div class="grid" id="companiesGrid"></div>
+      <form class="panel" id="companyForm">
+        <h3>➕ إضافة شركة / جهة جديدة</h3>
+        <div class="row3">
+          <label>اسم الشركة / الجهة * <input id="cName" required placeholder="مثال: شركة الصداقة الثانية" /></label>
+          <label>الوصف / النشاط <input id="cSub" placeholder="مثال: للمقاولات والنقل" /></label>
+          <label>رمز تعبيري (بديل الشعار) <input id="cEmoji" maxlength="4" placeholder="🏢" /></label>
+        </div>
+        <label>شعار الشركة (صورة PNG / JPG)
+          <input id="cLogo" type="file" accept="image/*" />
+        </label>
+        <p class="hint">يُحفظ الشعار داخل متصفحك فقط ويُصغّر تلقائياً. بدونه سيظهر الرمز التعبيري داخل دائرة ملوّنة.</p>
+        <button class="btn btn-gold" type="submit">💾 إضافة الشركة</button>
+      </form>
+    </section>
+  </main>
+</div>
+
+<!-- ===== Modal: New / Edit template ===== -->
+<div class="modal-overlay" id="templateModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="templateModalTitle">
+    <div class="modal-head">
+      <h3 id="templateModalTitle">➕ إضافة نموذج خطاب جديد</h3>
+      <button class="icon-btn" id="btnCloseModal" type="button" aria-label="إغلاق">✕</button>
+    </div>
+    <form id="templateForm">
+      <label>اسم النموذج <span class="req">*</span>
+        <input id="tName" required maxlength="80" placeholder="مثال: تسليم قيمة" />
+      </label>
+      <div class="row2">
+        <label>التصنيف
+          <select id="tCategory">
+            <option value="مالي">مالي</option>
+            <option value="إداري">إداري</option>
+            <option value="موارد بشرية">موارد بشرية</option>
+            <option value="عام" selected>عام</option>
+          </select>
+        </label>
+        <label>موضوع الخطاب الافتراضي
+          <input id="tSubject" maxlength="120" placeholder="مثال: تسليم قيمة مالية" />
+        </label>
+      </div>
+      <label>وصف مختصر
+        <input id="tDesc" maxlength="160" placeholder="مثال: نموذج إثبات تسليم مبلغ مالي مع توقيع المستلم" />
+      </label>
+      <label>نص النموذج <span class="req">*</span>
+        <textarea id="tContent" required rows="11" placeholder="اكتب نص الخطاب هنا…"></textarea>
+      </label>
+      <div class="chips">
+        <span>إدراج متغير:</span>
+        <button type="button" class="chip" data-var="اسم_المستلم">{{اسم_المستلم}}</button>
+        <button type="button" class="chip" data-var="المبلغ">{{المبلغ}}</button>
+        <button type="button" class="chip" data-var="التاريخ">{{التاريخ}}</button>
+        <button type="button" class="chip" data-var="الموضوع">{{الموضوع}}</button>
+        <button type="button" class="chip" data-var="اسم_المدير">{{اسم_المدير}}</button>
+      </div>
+      <p class="hint">💡 أي كلمة تكتبها بهذا الشكل <code>{{الاسم}}</code> ستظهر كحقل تعبئة عند استخدام النموذج، فلا تحتاج لتعديل النص كل مرة.</p>
+      <p class="error" id="templateError" hidden></p>
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="btnCancelModal" type="button">إلغاء</button>
+        <button class="btn btn-gold" type="submit" id="btnSubmitTemplate">💾 حفظ النموذج</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== Modal: New table template ===== -->
+<div class="modal-overlay" id="tableTemplateModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h3>➕ إنشاء نموذج جدول جديد</h3>
+      <button class="icon-btn" id="btnCloseTableModal" type="button" aria-label="إغلاق">✕</button>
+    </div>
+    <form id="tableTemplateForm">
+      <label>اسم نموذج الجدول <span class="req">*</span>
+        <input id="ttName" required maxlength="80" placeholder="مثال: كشف صلاحية السيارات — فرع جديد" />
+      </label>
+      <div class="row2">
+        <label>القسم
+          <select id="ttCategory">
+            <option value="السيارات والأسطول">السيارات والأسطول</option>
+            <option value="موارد بشرية">موارد بشرية</option>
+            <option value="مالية">مالية</option>
+            <option value="إداري" selected>إداري</option>
+            <option value="مخزون وأصول">مخزون وأصول</option>
+          </select>
+        </label>
+        <label>وصف مختصر <input id="ttDesc" maxlength="160" placeholder="فيما يُستخدم هذا الجدول؟" /></label>
+      </div>
+      <label>أعمدة الجدول <span class="req">*</span> — اكتب كل عمود في سطر مستقل
+        <textarea id="ttColumns" required rows="9" placeholder="الشركة&#10;اسم الموظف&#10;تاريخ التعيين&#10;تاريخ انتهاء العقد&#10;الراتب الأساسي&#10;ملاحظات"></textarea>
+      </label>
+      <p class="hint">💡 يُكتشف نوع العمود تلقائياً: أي عمود فيه «تاريخ / انتهاء» يصبح حقل تاريخ وتُحسب منه حالة الصلاحية، وأي عمود فيه «مبلغ / راتب / كمية / عدد» يصبح حقلاً رقمياً. عمود باسم «الشركة» تحديداً سيُربط بقائمة شركات المجموعة والمالك.</p>
+      <p class="error" id="tableTemplateError" hidden></p>
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="btnCancelTableModal" type="button">إلغاء</button>
+        <button class="btn btn-gold" type="submit">💾 حفظ نموذج الجدول</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="assets/js/app.js?v=3"></script>
+</body>
+</html>
