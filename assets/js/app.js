@@ -7,6 +7,9 @@ const LS_TEMPLATES = 'sadaka_templates_v1';
 const LS_LETTERS = 'sadaka_letters_v1';
 const $ = (s) => document.querySelector(s);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+/* Copie profonde avec repli JSON : structuredClone est absent de certains
+   navigateurs/WebView intégrés (visionneuse), ce qui bloquait l'ouverture des tableaux */
+const deepClone = (o) => { try { return structuredClone(o); } catch { return JSON.parse(JSON.stringify(o)); } };
 const today = () => new Date().toISOString().slice(0, 10);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -123,6 +126,7 @@ function showView(name) {
 }
 document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', () => showView(n.dataset.view)));
 document.querySelectorAll('[data-goto-editor]').forEach(b => b.addEventListener('click', () => showView('editor')));
+document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => showView(b.dataset.goto)));
 
 /* ---------- رسائل تنبيه ---------- */
 let toastTimer;
@@ -527,7 +531,7 @@ else { // إضافة أي نماذج افتراضية جديدة لمستخدم 
 let savedTables = load(LS_TABLES, []);
 let currentTableTemplate = null, currentTableId = null, currentRows = [];
 
-const cloneTableTemplate = (t) => ({ id: t.id, name: t.name, icon: t.icon, category: t.category, desc: t.desc, expiryKeys: [...(t.expiryKeys || [])], columns: structuredClone(t.columns || []) });
+const cloneTableTemplate = (t) => ({ id: t.id, name: t.name, icon: t.icon, category: t.category, desc: t.desc, expiryKeys: [...(t.expiryKeys || [])], columns: deepClone(t.columns || []) });
 const companyNames = () => companies.map(c => c.name);
 const isFormula = (col) => col.type === 'formula-net' || col.type === 'formula-stock';
 function cellValue(row, col) {
@@ -755,7 +759,7 @@ function openTableTemplate(id, saved = null) {
   if (!tpl) { toast('⚠️ نموذج هذا الجدول محذوف — افتح جدولاً آخر'); return; }
   currentTableTemplate = tpl;
   currentTableId = saved?.id || null;
-  currentRows = saved ? structuredClone(saved.rows || []) : structuredClone(tpl.sample ? tpl.sample() : [{}]);
+  currentRows = saved ? deepClone(saved.rows || []) : deepClone(tpl.sample ? tpl.sample() : [{}]);
   showView('tables');
   $('#tableEditor').hidden = false;
   $('#tbEditorTitle').textContent = `${tpl.icon || '📋'} ${tpl.name}`;
@@ -769,7 +773,7 @@ function openTableTemplate(id, saved = null) {
   if (saved?.company) $('#tbCompany').value = saved.company;
   $('#tbFilterCompany').value = '';
   renderDataTable();
-  $('#tableEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (typeof $('#tableEditor').scrollIntoView === 'function') $('#tableEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
   toast(`📊 تم فتح «${tpl.name}» — عدّل الخلايا ثم احفظ أو اطبع`);
 }
 function visibleRows() {
@@ -868,7 +872,7 @@ $('#btnSaveTable').addEventListener('click', () => {
     title: $('#tbTitle').value.trim() || currentTableTemplate.name, period: $('#tbPeriod').value.trim(),
     date: $('#tbDate').value || today(), companyMode: $('#tbCompanyMode').value, company: $('#tbCompany').value,
     prepared: $('#tbPrepared').value.trim(), approved: $('#tbApproved').value.trim(),
-    rows: structuredClone(currentRows)
+    rows: deepClone(currentRows)
   };
   if (currentTableId) savedTables = savedTables.map(t => t.id === currentTableId ? { ...t, ...data } : t);
   else { currentTableId = uid(); savedTables.unshift({ id: currentTableId, ...data }); }
