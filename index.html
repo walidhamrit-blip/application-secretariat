@@ -6,7 +6,7 @@
 <title>تطبيق السكرتارية — شركة الصداقة | الخطابات وجداول البيانات الداخلية</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=4" />
+<link rel="stylesheet" href="assets/css/style.css?v=5" />
 </head>
 <body>
 
@@ -274,6 +274,19 @@
               <div class="inline"><input id="tbPrepared" placeholder="أعده…" /><input id="tbApproved" placeholder="اعتمده…" /></div>
             </label>
           </div>
+          <!-- Éditeur de colonnes : renommer / ajouter / supprimer / réordonner / type -->
+          <div class="columns-editor" id="columnsEditor">
+            <div class="card-top">
+              <h4>🧩 تعديل الأعمدة</h4>
+              <div class="head-actions">
+                <button class="btn btn-outline btn-sm" id="btnAddColumn" type="button">➕ إضافة عمود</button>
+                <button class="btn btn-gold btn-sm" id="btnSaveColumns" type="button">💾 حفظ الأعمدة في النموذج الأصلي</button>
+              </div>
+            </div>
+            <p class="hint">غيّر <strong>اسم</strong> أي عمود أو <strong>نوعه</strong>، أعد ترتيبه بالأسهم ⬆⬇، انسخه ⧉ أو احذفه 🗑 — التعديل يظهر فوراً في الجدول والمعاينة والطباعة والتصدير. «حفظ الجدول» يحفظ الأعمدة مع هذا الجدول، وزر «حفظ الأعمدة في النموذج الأصلي» يجعلها دائمة في القالب لكل الاستخدامات القادمة.</p>
+            <div id="columnsList"></div>
+          </div>
+
           <div class="alerts" id="tbAlerts"></div>
           <div class="form-actions">
             <button class="btn btn-outline" id="btnAddRow" type="button">➕ إضافة صف</button>
@@ -422,6 +435,6 @@
 
 <div class="toast" id="toast" hidden></div>
 
-<script src="assets/js/app.js?v=4"></script>
+<script src="assets/js/app.js?v=5"></script>
 </body>
 </html>

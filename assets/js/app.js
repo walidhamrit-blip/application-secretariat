@@ -757,9 +757,11 @@ function fillCompanySelects() {
 function openTableTemplate(id, saved = null) {
   const tpl = tableTemplates.find(t => t.id === id) || saved?.templateSnapshot;
   if (!tpl) { toast('⚠️ نموذج هذا الجدول محذوف — افتح جدولاً آخر'); return; }
-  currentTableTemplate = tpl;
   currentTableId = saved?.id || null;
   currentRows = saved ? deepClone(saved.rows || []) : deepClone(tpl.sample ? tpl.sample() : [{}]);
+  // Copie de travail isolée : modifier les colonnes n'altère le modèle
+  // d'origine que si l'on clique « حفظ الأعمدة في النموذج الأصلي »
+  currentTableTemplate = cloneTableTemplate(tpl);
   showView('tables');
   $('#tableEditor').hidden = false;
   $('#tbEditorTitle').textContent = `${tpl.icon || '📋'} ${tpl.name}`;
@@ -772,7 +774,7 @@ function openTableTemplate(id, saved = null) {
   $('#tbCompanyMode').value = saved?.companyMode || 'group';
   if (saved?.company) $('#tbCompany').value = saved.company;
   $('#tbFilterCompany').value = '';
-  renderDataTable();
+  renderDataTable(); renderColumnsEditor();
   if (typeof $('#tableEditor').scrollIntoView === 'function') $('#tableEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
   toast(`📊 تم فتح «${tpl.name}» — عدّل الخلايا ثم احفظ أو اطبع`);
 }
@@ -808,6 +810,104 @@ function renderDataTable() {
   }).join('') || `<tr><td colspan="${tpl.columns.length + 3}" style="text-align:center;padding:22px">لا توجد صفوف مطابقة — اضغط «إضافة صف» أو غيّر التصفية</td></tr>`;
   syncSheetMeta(); renderAlerts();
 }
+/* ---------- تعديل الأعمدة : nom, type, ordre, ajout, suppression ---------- */
+const COLUMN_TYPES = [
+  ['text', 'نص'], ['date', 'تاريخ (انتهاء = صلاحية)'], ['number', 'رقم / مبلغ'],
+  ['company', 'الشركة / المالك'], ['select', 'قائمة منسدلة'],
+  ['formula-net', 'محسوب: الصافي (أساسي+بدلات−خصومات)'], ['formula-stock', 'محسوب: الرصيد (أول+وارد−منصرف)']
+];
+function syncExpiryKeys() {
+  if (!currentTableTemplate) return;
+  currentTableTemplate.expiryKeys = currentTableTemplate.columns
+    .filter(c => c.type === 'date' && /انتهاء|صلاحية/.test(c.label)).map(c => c.key);
+}
+function refreshTableAndColumns(focusIdx = null) {
+  renderDataTable(); renderColumnsEditor();
+  if (focusIdx !== null) document.querySelector(`[data-col-label][data-idx="${focusIdx}"]`)?.focus();
+}
+function renderColumnsEditor() {
+  const box = $('#columnsList'); if (!box || !currentTableTemplate) return;
+  box.innerHTML = currentTableTemplate.columns.map((c, i) => `
+    <div class="col-row">
+      <span class="col-num">${i + 1}</span>
+      <input data-col-label data-idx="${i}" value="${esc(c.label)}" placeholder="اسم العمود" aria-label="اسم العمود ${i + 1}" />
+      <select data-col-type data-idx="${i}" aria-label="نوع العمود ${i + 1}">
+        ${COLUMN_TYPES.map(([v, l]) => `<option value="${v}" ${c.type === v ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
+      <input data-col-options data-idx="${i}" value="${esc((c.options || []).join('، '))}" placeholder="خيارات القائمة المنسدلة (افصل بفاصلة) — تُستخدم مع نوع «قائمة»" />
+      <span class="col-btns">
+        <button class="col-btn" type="button" data-col-up="${i}" title="نقل لأعلى">⬆</button>
+        <button class="col-btn" type="button" data-col-down="${i}" title="نقل لأسفل">⬇</button>
+        <button class="col-btn" type="button" data-col-dup="${i}" title="نسخ العمود">⧉</button>
+        <button class="col-btn danger" type="button" data-col-del="${i}" title="حذف العمود">🗑</button>
+      </span>
+    </div>`).join('');
+}
+// Renommer en direct sans perdre le focus : on ne met à jour que l'en-tête
+$('#columnsList')?.addEventListener('input', (e) => {
+  const labelInp = e.target.closest('[data-col-label]');
+  const optInp = e.target.closest('[data-col-options]');
+  if (labelInp) {
+    const i = Number(labelInp.dataset.idx), col = currentTableTemplate?.columns[i]; if (!col) return;
+    col.label = labelInp.value; syncExpiryKeys();
+    const th = document.querySelector(`#dataHead th:nth-child(${i + 2})`); if (th) th.textContent = labelInp.value;
+  }
+  if (optInp) {
+    const i = Number(optInp.dataset.idx), col = currentTableTemplate?.columns[i]; if (!col) return;
+    col.options = optInp.value.split(/،|,/).map(s => s.trim()).filter(Boolean);
+  }
+});
+$('#columnsList')?.addEventListener('change', (e) => {
+  const typeSel = e.target.closest('[data-col-type]'); if (!typeSel || !currentTableTemplate) return;
+  const i = Number(typeSel.dataset.idx), col = currentTableTemplate.columns[i]; if (!col) return;
+  col.type = typeSel.value;
+  if (col.type === 'company') currentRows.forEach(r => { if (!companyNames().includes(r[col.key])) r[col.key] = companyNames()[0] || ''; });
+  if (col.type === 'select' && !col.options?.length) col.options = ['الأول', 'الثاني'];
+  syncExpiryKeys(); refreshTableAndColumns();
+  toast(`🔧 أصبح عمود «${col.label}» من نوع: ${typeSel.selectedOptions[0].textContent}`);
+});
+$('#columnsList')?.addEventListener('click', (e) => {
+  if (!currentTableTemplate) return;
+  const cols = currentTableTemplate.columns;
+  const up = e.target.closest('[data-col-up]'), down = e.target.closest('[data-col-down]'),
+        dup = e.target.closest('[data-col-dup]'), del = e.target.closest('[data-col-del]');
+  const swap = (a, b) => { [cols[a], cols[b]] = [cols[b], cols[a]]; refreshTableAndColumns(); };
+  if (up && Number(up.dataset.colUp) > 0) swap(Number(up.dataset.colUp), Number(up.dataset.colUp) - 1);
+  if (down && Number(down.dataset.colDown) < cols.length - 1) swap(Number(down.dataset.colDown), Number(down.dataset.colDown) + 1);
+  if (dup) {
+    const i = Number(dup.dataset.colDup), src = cols[i];
+    const copy = { ...deepClone(src), key: 'col_' + uid(), label: src.label + ' — نسخة' };
+    cols.splice(i + 1, 0, copy);
+    currentRows.forEach(r => r[copy.key] = r[src.key] ?? '');
+    syncExpiryKeys(); refreshTableAndColumns(i + 1); toast(`⧉ تم نسخ عمود «${src.label}»`);
+  }
+  if (del) {
+    const i = Number(del.dataset.colDel), col = cols[i];
+    if (cols.length <= 1) { toast('⚠️ يجب إبقاء عمود واحد على الأقل'); return; }
+    if (!confirm(`حذف عمود «${col.label}» وكل قيمه من جميع الصفوف؟`)) return;
+    cols.splice(i, 1); currentRows.forEach(r => delete r[col.key]);
+    syncExpiryKeys(); refreshTableAndColumns(); toast(`🗑️ تم حذف عمود «${col.label}»`);
+  }
+});
+$('#btnAddColumn')?.addEventListener('click', () => {
+  if (!currentTableTemplate) return;
+  const col = { key: 'col_' + uid(), label: 'عمود جديد', type: 'text', options: [] };
+  currentTableTemplate.columns.push(col);
+  currentRows.forEach(r => r[col.key] = '');
+  refreshTableAndColumns(currentTableTemplate.columns.length - 1);
+  toast('➕ تمت إضافة عمود جديد — غيّر اسمه ونوعه من قائمة الأعمدة');
+});
+$('#btnSaveColumns')?.addEventListener('click', () => {
+  if (!currentTableTemplate) return;
+  syncExpiryKeys();
+  const snapshot = cloneTableTemplate(currentTableTemplate);
+  const idx = tableTemplates.findIndex(t => t.id === currentTableTemplate.id);
+  if (idx >= 0) tableTemplates[idx] = { ...tableTemplates[idx], columns: snapshot.columns, expiryKeys: snapshot.expiryKeys };
+  else tableTemplates.unshift({ ...snapshot }); // modèle d'origine supprimé : on le recrée
+  save(LS_TABLE_TEMPLATES, tableTemplates); renderTableTemplates();
+  toast(`💾 تم حفظ أعمدة «${currentTableTemplate.name}» في النموذج الأصلي — ستظهر في كل استخدام قادم`);
+});
+
 function renderAlerts() {
   const tpl = currentTableTemplate; if (!tpl) return;
   let html = `<span class="alert-pill info">📋 إجمالي السجلات: ${currentRows.length}</span>`;
