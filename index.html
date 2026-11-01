@@ -6,7 +6,7 @@
 <title>تطبيق السكرتارية — شركة الصداقة | الخطابات وجداول البيانات الداخلية</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=7" />
+<link rel="stylesheet" href="assets/css/style.css?v=9" />
 </head>
 <body>
 
@@ -126,6 +126,10 @@
 
       <div class="editor-layout">
         <form class="panel no-print" id="letterForm">
+          <label>الشركة المصدرة للخطاب
+            <select id="fLetterCompany" aria-describedby="letterCompanyHint"></select>
+          </label>
+          <p class="hint" id="letterCompanyHint">اختر شركة الصداقة المثالية لاستيراد مواد البناء أو لصناعة المواد الغذائية لتطبيق ورقها الخاص تلقائياً في المعاينة والطباعة.</p>
           <label>نموذج الخطاب
             <div class="inline">
               <select id="fTemplate"></select>
@@ -160,6 +164,7 @@
         <div class="preview-wrap">
           <p class="preview-label no-print">👁️ معاينة الخطاب (A4) — جاهزة للطباعة</p>
           <article class="sheet" id="previewSheet">
+            <img class="letterhead-art" id="letterheadArt" src="assets/images/almithaliya-letterhead.jpg" alt="" hidden />
             <header class="sheet-head">
               <div><strong>شركة الصداقة</strong><span>الإدارة العامة — السكرتارية</span></div>
               <div class="sheet-head-left">✉️</div>
@@ -456,6 +461,6 @@
 
 <div class="toast" id="toast" hidden></div>
 
-<script src="assets/js/app.js?v=7"></script>
+<script src="assets/js/app.js?v=9"></script>
 </body>
 </html>

@@ -246,3 +246,16 @@ label{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:14px;
 .quick-access{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:1200px){.quick-access{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.quick-access{grid-template-columns:1fr}.nav-heading{width:100%;padding-top:8px}.archive-counts{width:100%}}
+
+/* ورق المراسلات المرفق: صورة فعلية تُطبع دون الاعتماد على طباعة الخلفيات */
+#previewSheet.has-letterhead{position:relative;isolation:isolate;min-height:1123px;padding:145px 60px 160px}
+#previewSheet .letterhead-art{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;z-index:-1}
+#previewSheet.has-letterhead .sheet-head{display:none}
+@media print{
+  #previewSheet.has-letterhead{min-height:273mm;padding:30mm 12mm 36mm;box-shadow:none;break-inside:avoid}
+  #previewSheet.has-letterhead .sheet-body{min-height:105mm}
+  #previewSheet .letterhead-art{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+}
+/* مساحة إضافية لنموذج مواد البناء الذي يتضمن حقولاً مطبوعة في أعلى الورقة. */
+#previewSheet.has-letterhead.building-letterhead{padding-top:225px;padding-bottom:190px}
+@media print{#previewSheet.has-letterhead.building-letterhead{padding-top:48mm;padding-bottom:42mm}}

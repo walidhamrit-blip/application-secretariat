@@ -302,6 +302,18 @@ function filledContent() {
 }
 
 function updatePreview() {
+  const companyId = $('#fLetterCompany').value;
+  const letterheads = {
+    'co-almithaliya-building': 'assets/images/almithaliya-building.jpg',
+    'co-almithaliya-food': 'assets/images/almithaliya-letterhead.jpg'
+  };
+  const image = letterheads[companyId];
+  $('#previewSheet').classList.toggle('has-letterhead', !!image);
+  $('#previewSheet').classList.toggle('building-letterhead', companyId === 'co-almithaliya-building');
+  $('#letterheadArt').hidden = !image;
+  if (image) $('#letterheadArt').src = image;
+  const company = companies.find(c => c.id === $('#fLetterCompany').value);
+  $('#previewSheet .sheet-head strong').textContent = company?.name || 'شركة الصداقة';
   $('#pRef').textContent = $('#fRef').value.trim() || '—';
   $('#pDate').textContent = $('#fDate').value || '—';
   $('#pRecipient').textContent = $('#fRecipient').value.trim() || '—';
@@ -312,6 +324,7 @@ function updatePreview() {
     ? esc(body).replace(/\{\{\s*([^}]+?)\s*\}\}/g, '<span class="unfilled">{{$1}}</span>')
     : 'اختر نموذجاً لبدء كتابة خطابك…';
 }
+$('#fLetterCompany').addEventListener('change', updatePreview);
 ['fRef', 'fDate', 'fRecipient', 'fSubject', 'fContent'].forEach(id =>
   document.getElementById(id).addEventListener('input', () => { if (id === 'fContent') renderVarFields(); updatePreview(); }));
 
@@ -334,7 +347,7 @@ $('#letterForm').addEventListener('submit', (e) => {
     recipient: $('#fRecipient').value.trim(), subject: $('#fSubject').value.trim() || 'بدون موضوع',
     content: $('#fContent').value,
     vars: Object.fromEntries([...document.querySelectorAll('#varsFields [data-var]')].map(i => [i.dataset.var, i.value])),
-    templateId: $('#fTemplate').value || ''
+    templateId: $('#fTemplate').value || '', companyId: $('#fLetterCompany').value || 'co-sadaka'
   };
   if (currentLetterId) {
     letters = letters.map(l => l.id === currentLetterId ? { ...l, ...data } : l);
@@ -384,6 +397,7 @@ function openLetter(id, printAfter = false) {
   const l = letters.find(x => x.id === id); if (!l) return;
   showView('editor'); currentLetterId = id;
   fillTemplateSelect(l.templateId || '');
+  fillLetterCompanies(l.companyId || 'co-sadaka');
   $('#fRef').value = l.ref || ''; $('#fDate').value = l.date || today();
   $('#fRecipient').value = l.recipient || ''; $('#fSubject').value = l.subject || '';
   $('#fContent').value = l.content || '';
@@ -416,6 +430,8 @@ const dateOffset = (days) => { const d = new Date(); d.setDate(d.getDate() + day
 
 const DEFAULT_COMPANIES = [
   { id: 'co-sadaka', name: 'شركة الصداقة', sub: 'للتجارة والمقاولات العامة', emoji: '🏢', logo: '', owner: false },
+  { id: 'co-almithaliya-building', name: 'شركة الصداقة المثالية لاستيراد مواد البناء والمواد الصحية', sub: 'ورق مراسلات خاص', emoji: '🏢', logo: '', owner: false },
+  { id: 'co-almithaliya-food', name: 'شركة الصداقة المثالية لصناعة المواد الغذائية', sub: 'ورق مراسلات خاص', emoji: '🏭', logo: '', owner: false },
   { id: 'co-sister', name: 'الشركة الشقيقة — عدّل اسمها', sub: 'الشركة الثانية في المجموعة', emoji: '🏭', logo: '', owner: false },
   { id: 'co-owner', name: 'المالك — سيارة خاصة', sub: 'سيارة المالك الشخصية', emoji: '👤', logo: '', owner: true }
 ];
@@ -530,6 +546,28 @@ const DEFAULT_TABLE_TEMPLATES = [
 
 let companies = load(LS_COMPANIES, null);
 if (!Array.isArray(companies) || !companies.length) { companies = [...DEFAULT_COMPANIES]; save(LS_COMPANIES, companies); }
+// إضافة الشركتين دون المساس ببيانات الجهات الموجودة أو الخطابات المحفوظة.
+let companyMigration = false;
+for (const id of ['co-almithaliya-building', 'co-almithaliya-food']) {
+  if (!companies.some(c => c.id === id)) {
+    companies.push({ ...DEFAULT_COMPANIES.find(c => c.id === id) });
+    companyMigration = true;
+  }
+}
+const buildingCompany = companies.find(c => c.id === 'co-almithaliya-building');
+if (buildingCompany && buildingCompany.name === 'المثالية لاستيراد مواد البناء') {
+  buildingCompany.name = 'شركة الصداقة المثالية لاستيراد مواد البناء والمواد الصحية';
+  companyMigration = true;
+}
+if (companyMigration) save(LS_COMPANIES, companies);
+function fillLetterCompanies(selectedId) {
+  const select = $('#fLetterCompany');
+  const current = selectedId ?? select.value;
+  select.innerHTML = companies.filter(c => !c.owner).map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  if (companies.some(c => c.id === current && !c.owner)) select.value = current;
+  else if (companies.some(c => c.id === 'co-sadaka')) select.value = 'co-sadaka';
+}
+
 
 let tableTemplates = load(LS_TABLE_TEMPLATES, null);
 if (!Array.isArray(tableTemplates) || !tableTemplates.length) { tableTemplates = [...DEFAULT_TABLE_TEMPLATES]; save(LS_TABLE_TEMPLATES, tableTemplates); }
@@ -634,7 +672,7 @@ $('#companiesGrid').addEventListener('change', (e) => {
   const f = e.target.closest('[data-co-logo]'); if (!f || !f.files?.[0]) return;
   resizeLogo(f.files[0], (dataUrl) => {
     companies = companies.map(c => c.id === f.dataset.coLogo ? { ...c, logo: dataUrl } : c);
-    save(LS_COMPANIES, companies); renderCompanies(); fillCompanySelects(); toast('✅ تم حفظ شعار الشركة');
+    save(LS_COMPANIES, companies); renderCompanies(); fillCompanySelects(); fillLetterCompanies(); updatePreview(); toast('✅ تم حفظ شعار الشركة');
   });
 });
 $('#companiesGrid').addEventListener('click', (e) => {
@@ -646,15 +684,15 @@ $('#companiesGrid').addEventListener('click', (e) => {
     companies = companies.map(c => c.id === id ? { ...c, name,
       sub: document.querySelector(`[data-co-sub="${id}"]`).value.trim(),
       emoji: document.querySelector(`[data-co-emoji="${id}"]`).value.trim() || '🏢' } : c);
-    save(LS_COMPANIES, companies); renderCompanies(); fillCompanySelects(); toast(`✅ تم حفظ «${name}»`);
+    save(LS_COMPANIES, companies); renderCompanies(); fillCompanySelects(); fillLetterCompanies(); updatePreview(); toast(`✅ تم حفظ «${name}»`);
   }
-  if (cl) { companies = companies.map(c => c.id === cl.dataset.coClearlogo ? { ...c, logo: '' } : c); save(LS_COMPANIES, companies); renderCompanies(); fillCompanySelects(); }
+  if (cl) { companies = companies.map(c => c.id === cl.dataset.coClearlogo ? { ...c, logo: '' } : c); save(LS_COMPANIES, companies); renderCompanies(); fillCompanySelects(); fillLetterCompanies(); updatePreview(); }
   if (d) {
     if (companies.length <= 1) { toast('⚠️ يجب إبقاء جهة واحدة على الأقل'); return; }
     const c = companies.find(x => x.id === d.dataset.coDel);
     if (!confirm(`حذف «${c?.name}» من المجموعة؟`)) return;
     companies = companies.filter(x => x.id !== c.id);
-    save(LS_COMPANIES, companies); renderCompanies(); fillCompanySelects(); toast('🗑️ تم حذف الجهة');
+    save(LS_COMPANIES, companies); renderCompanies(); fillCompanySelects(); fillLetterCompanies(); updatePreview(); toast('🗑️ تم حذف الجهة');
   }
 });
 $('#companyForm').addEventListener('submit', (e) => {
@@ -663,7 +701,7 @@ $('#companyForm').addEventListener('submit', (e) => {
   if (companies.some(c => c.name === name)) { toast('⚠️ توجد جهة بنفس الاسم'); return; }
   const add = (logo = '') => {
     companies.push({ id: uid(), name, sub: $('#cSub').value.trim(), emoji: $('#cEmoji').value.trim() || '🏢', logo, owner: /مالك|خاص/.test(name) });
-    save(LS_COMPANIES, companies); e.target.reset(); renderCompanies(); fillCompanySelects(); toast(`✅ تمت إضافة «${name}» إلى المجموعة`);
+    save(LS_COMPANIES, companies); e.target.reset(); renderCompanies(); fillCompanySelects(); fillLetterCompanies(); updatePreview(); toast(`✅ تمت إضافة «${name}» إلى المجموعة`);
   };
   const file = $('#cLogo').files?.[0];
   if (file) resizeLogo(file, add); else add();
@@ -1250,6 +1288,7 @@ $('#btnGotoColumns')?.addEventListener('click', () => {
 /* ---------- بدء التشغيل ---------- */
 $('#fDate').value = today();
 fillTemplateSelect();
+fillLetterCompanies();
 renderTemplates();
 renderLetters();
 updatePreview();
